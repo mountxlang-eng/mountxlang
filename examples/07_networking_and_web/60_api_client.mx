@@ -1,0 +1,42 @@
+# examples/07_networking_and_web/60_api_client.mx
+# Reusable REST API Client class wrapping GET & POST with JSON parsing
+
+mountx
+importx net
+importx json
+importx map
+
+classx RestClient {
+    let base_url = ""
+
+    func init(endpoint) {
+        this.base_url = endpoint
+    }
+
+    func get_json(path) {
+        let full_url = this.base_url + path
+        let body = net.fetch(full_url)
+        return json.parse(body)
+    }
+
+    func post_json(path, data_obj) {
+        let full_url = this.base_url + path
+        let json_str = json.stringify(data_obj)
+        let body = net.post(full_url, json_str, "application/json")
+        return json.parse(body)
+    }
+}
+
+let client = newx RestClient("https://httpbin.org")
+printx("Initialized REST client for: " + client.base_url)
+
+tryx {
+    printx("Fetching /get endpoint:")
+    let res = client.get_json("/get?client=mountx&env=native")
+    let args_val = map.pairs_get(res, "args")
+    printx("Returned query args: " + args_val)
+} catchx (err) {
+    printx("Request error (offline or network): " + err)
+}
+
+unmountx

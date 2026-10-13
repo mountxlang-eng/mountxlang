@@ -1,0 +1,26 @@
+# examples/04_text_and_regex/33_json_parsing.mx
+# Parsing JSON data into MountX structures
+
+mountx
+importx json
+importx map
+
+let raw_json = "{\"title\": \"MountX Guide\", \"version\": 1.1, \"features\": [\"fast\", \"native\", \"standalone\"], \"active\": true}"
+printx("Raw JSON string: " + raw_json)
+
+let parsed = json.parse(raw_json)
+printx("Parsed pairs: " + parsed)
+
+# Accessing fields via map.pairs_get
+let title = map.pairs_get(parsed, "title")
+let version = map.pairs_get(parsed, "version")
+let features = map.pairs_get(parsed, "features")
+let is_active = map.pairs_get(parsed, "active")
+
+printx("Title: " + title)
+printx("Version: " + version)
+printx("Features count: " + len(features))
+printx("First feature: " + features[0])
+printx("Is Active? " + is_active)
+
+unmountx

@@ -1,0 +1,29 @@
+# examples/02_data_structures/14_hash_tables.mx
+# Bucketed Hash Table with separate chaining and collision resolution
+
+mountx
+importx hashtable
+
+let ht = newx hashtable.HashTable()
+
+ht.set("alpha", 1)
+ht.set("beta", 2)
+ht.set("gamma", 3)
+ht.set("delta", 4)
+ht.set("epsilon", 5)
+
+printx("HashTable count: " + ht.size())
+printx("Value of 'gamma': " + ht.get("gamma"))
+printx("Has 'beta'? " + ht.has("beta"))
+printx("Has 'omega'? " + ht.has("omega"))
+
+# Update an existing key
+ht.set("alpha", 100)
+printx("Updated 'alpha': " + ht.get("alpha"))
+
+# Remove key
+ht.remove("beta")
+printx("After removing 'beta', has 'beta'? " + ht.has("beta"))
+printx("Remaining keys: " + ht.keys())
+
+unmountx

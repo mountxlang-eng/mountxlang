@@ -1,0 +1,144 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# buffer.mx - binary buffer and byte manipulation (system/)
+# Usage:
+#   importx buffer
+#   let b = buffer.create(10) # 10 zero bytes
+#   b.set(0, 65)              # 'A'
+#   b.get(0)                  # 65
+#   let b2 = buffer.from_string("Hello")
+#   b2.to_hex()               # "48656c6c6f"
+#   let b3 = buffer.from_hex("48656c6c6f")
+#   b3.to_string()            # "Hello"
+
+importx string
+
+let _HEX_CHARS = "0123456789abcdef"
+
+classx Buffer {
+    let _bytes = []
+
+    func init(size_or_bytes) {
+        this._bytes = []
+        if typeofx(size_or_bytes) == "number" {
+            let i = 0
+            while i < size_or_bytes {
+                this._bytes = this._bytes + [0]
+                i = i + 1
+            }
+        } else if typeofx(size_or_bytes) == "array" {
+            for b in size_or_bytes {
+                this._bytes = this._bytes + [b % 256]
+            }
+        }
+    }
+
+    func get(idx) {
+        if idx < 0 || idx >= len(this._bytes) {
+            throwx "Buffer index out of range: " + idx
+        }
+        return this._bytes[idx]
+    }
+
+    func set(idx, byte_val) {
+        if idx < 0 || idx >= len(this._bytes) {
+            throwx "Buffer index out of range: " + idx
+        }
+        this._bytes[idx] = byte_val % 256
+        return this
+    }
+
+    func size() {
+        return len(this._bytes)
+    }
+
+    func append(byte_val) {
+        this._bytes = this._bytes + [byte_val % 256]
+        return this
+    }
+
+    func slice(start, end) {
+        let s = start
+        let e = end
+        if s < 0 { s = 0 }
+        if e > len(this._bytes) { e = len(this._bytes) }
+        let sub = []
+        let i = s
+        while i < e {
+            sub = sub + [this._bytes[i]]
+            i = i + 1
+        }
+        return newx Buffer(sub)
+    }
+
+    func to_array() {
+        let copy = []
+        for b in this._bytes {
+            copy = copy + [b]
+        }
+        return copy
+    }
+
+    func to_string() {
+        let s = ""
+        for b in this._bytes {
+            s = s + str_chr(b)
+        }
+        return s
+    }
+
+    func to_hex() {
+        let h = ""
+        for b in this._bytes {
+            let hi = idiv(b, 16)
+            let lo = b % 16
+            h = h + _HEX_CHARS[hi] + _HEX_CHARS[lo]
+        }
+        return h
+    }
+
+    func write_file(path) {
+        return writex(path, this.to_string())
+    }
+}
+
+func create(size) {
+    return newx Buffer(size)
+}
+
+func from_string(s) {
+    let bytes = []
+    let i = 0
+    while i < len(s) {
+        bytes = bytes + [str_ord(s[i])]
+        i = i + 1
+    }
+    return newx Buffer(bytes)
+}
+
+func from_array(arr) {
+    return newx Buffer(arr)
+}
+
+func from_hex(hex_str) {
+    let clean = string.to_lower(hex_str)
+    let bytes = []
+    let i = 0
+    while i < len(clean) {
+        if i + 1 < len(clean) {
+            let hi = string.index_of(_HEX_CHARS, clean[i])
+            let lo = string.index_of(_HEX_CHARS, clean[i + 1])
+            if hi >= 0 && lo >= 0 {
+                bytes = bytes + [(hi * 16) + lo]
+            }
+            i = i + 2
+        } else {
+            i = i + 1
+        }
+    }
+    return newx Buffer(bytes)
+}
+
+func read_file(path) {
+    let content = readx(path)
+    return from_string(content)
+}

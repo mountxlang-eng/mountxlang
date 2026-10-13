@@ -1,0 +1,41 @@
+# examples/02_data_structures/11_arrays.mx
+# Advanced array operations with arrayfull
+
+mountx
+importx arrayfull
+
+let nums = [5, 2, 8, 1, 9, 3, 7, 4, 6]
+printx("Original array: " + nums)
+
+printx("First element: " + arrayfull.first(nums))
+printx("Last element: " + arrayfull.last(nums))
+printx("Reversed array: " + arrayfull.reversed(nums))
+
+func compare_asc(a, b) {
+    if a < b { return -1 }
+    if a > b { return 1 }
+    return 0
+}
+
+let sorted_nums = arrayfull.sort_by(nums, compare_asc)
+printx("Sorted array: " + sorted_nums)
+
+let duplicates = [1, 2, 2, 3, 4, 4, 4, 5]
+printx("With duplicates: " + duplicates)
+printx("Unique elements: " + arrayfull.unique(duplicates))
+
+func is_even(x) {
+    return x % 2 == 0
+}
+
+func square(x) {
+    return x * x
+}
+
+let evens = arrayfull.filter(nums, is_even)
+printx("Filtered evens: " + evens)
+
+let squares = arrayfull.map(evens, square)
+printx("Squared evens: " + squares)
+
+unmountx

@@ -1,0 +1,227 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# bst.mx - binary search tree used as an ordered map (key -> value)
+# Keys must all be the same type (numbers or strings) so < and == work.
+
+classx BstNode {
+    let key = nullx
+    let val = nullx
+    let left = nullx
+    let right = nullx
+
+    func init(key, val) {
+        this.key = key
+        this.val = val
+    }
+}
+
+classx BST {
+    let root = nullx
+    let count = 0
+
+    func insert(key, val) {
+        if this.root == nullx {
+            this.root = newx BstNode(key, val)
+            this.count = this.count + 1
+            return this
+        }
+        let cur = this.root
+        while true {
+            if key == cur.key {
+                cur.val = val
+                return this
+            }
+            if key < cur.key {
+                if cur.left == nullx {
+                    cur.left = newx BstNode(key, val)
+                    this.count = this.count + 1
+                    return this
+                }
+                cur = cur.left
+            } else {
+                if cur.right == nullx {
+                    cur.right = newx BstNode(key, val)
+                    this.count = this.count + 1
+                    return this
+                }
+                cur = cur.right
+            }
+        }
+    }
+
+    # nullx when the key is absent (avoid storing nullx values; use has())
+    func get(key) {
+        let cur = this.root
+        while cur != nullx {
+            if key == cur.key {
+                return cur.val
+            }
+            if key < cur.key {
+                cur = cur.left
+            } else {
+                cur = cur.right
+            }
+        }
+        return nullx
+    }
+
+    func get_or_default(key, d) {
+        let cur = this.root
+        while cur != nullx {
+            if key == cur.key {
+                return cur.val
+            }
+            if key < cur.key {
+                cur = cur.left
+            } else {
+                cur = cur.right
+            }
+        }
+        return d
+    }
+
+    func has(key) {
+        let cur = this.root
+        while cur != nullx {
+            if key == cur.key {
+                return true
+            }
+            if key < cur.key {
+                cur = cur.left
+            } else {
+                cur = cur.right
+            }
+        }
+        return false
+    }
+
+    # true if the key existed
+    func remove(key) {
+        if !this.has(key) {
+            return false
+        }
+        this.count = this.count - 1
+        this.root = this._remove(this.root, key)
+        return true
+    }
+
+    func _remove(node, key) {
+        if node == nullx {
+            return nullx
+        }
+        if key < node.key {
+            node.left = this._remove(node.left, key)
+            return node
+        }
+        if key > node.key {
+            node.right = this._remove(node.right, key)
+            return node
+        }
+        # found it
+        if node.left == nullx {
+            return node.right
+        }
+        if node.right == nullx {
+            return node.left
+        }
+        # two children: swap in the successor, then delete it from the right
+        let succ = node.right
+        while succ.left != nullx {
+            succ = succ.left
+        }
+        node.key = succ.key
+        node.val = succ.val
+        node.right = this._remove(node.right, succ.key)
+        return node
+    }
+
+    func min_key() {
+        if this.root == nullx {
+            return nullx
+        }
+        let cur = this.root
+        while cur.left != nullx {
+            cur = cur.left
+        }
+        return cur.key
+    }
+
+    func max_key() {
+        if this.root == nullx {
+            return nullx
+        }
+        let cur = this.root
+        while cur.right != nullx {
+            cur = cur.right
+        }
+        return cur.key
+    }
+
+    func size() {
+        return this.count
+    }
+
+    func is_empty() {
+        return this.count == 0
+    }
+
+    func clear() {
+        this.root = nullx
+        this.count = 0
+    }
+
+    func _inorder_keys(node, acc) {
+        if node == nullx {
+            return acc
+        }
+        acc = this._inorder_keys(node.left, acc)
+        acc = acc + [node.key]
+        acc = this._inorder_keys(node.right, acc)
+        return acc
+    }
+
+    func _inorder_pairs(node, acc) {
+        if node == nullx {
+            return acc
+        }
+        acc = this._inorder_pairs(node.left, acc)
+        acc = acc + [[node.key, node.val]]
+        acc = this._inorder_pairs(node.right, acc)
+        return acc
+    }
+
+    # keys in sorted order
+    func keys() {
+        return this._inorder_keys(this.root, [])
+    }
+
+    # [[key, value], ...] in sorted key order
+    func entries() {
+        return this._inorder_pairs(this.root, [])
+    }
+
+    # values in sorted key order
+    func values() {
+        let out = []
+        for p in this.entries() {
+            out = out + [p[1]]
+        }
+        return out
+    }
+
+    func _height(node) {
+        if node == nullx {
+            return 0
+        }
+        let lh = this._height(node.left)
+        let rh = this._height(node.right)
+        if lh > rh {
+            return lh + 1
+        }
+        return rh + 1
+    }
+
+    # 0 for empty; 1 for a single node
+    func height() {
+        return this._height(this.root)
+    }
+}

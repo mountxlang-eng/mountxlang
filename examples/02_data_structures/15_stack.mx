@@ -1,0 +1,42 @@
+# examples/02_data_structures/15_stack.mx
+# LIFO Stack and bracket balancing algorithm
+
+mountx
+importx stack
+
+let s = newx stack.Stack()
+s.push(10)
+s.push(20)
+s.push(30)
+printx("Stack size: " + s.size())
+printx("Peek top: " + s.peek())
+printx("Popped: " + s.pop())
+printx("New top: " + s.peek())
+
+# Bracket matching algorithm
+func is_brackets_balanced(expr) {
+    let st = newx stack.Stack()
+    let i = 0
+    while i < len(expr) {
+        let ch = expr[i]
+        if ch == "(" || ch == "[" || ch == "{" {
+            st.push(ch)
+        } else if ch == ")" || ch == "]" || ch == "}" {
+            if st.is_empty() {
+                return false
+            }
+            let top = st.pop()
+            if ch == ")" && top != "(" { return false }
+            if ch == "]" && top != "[" { return false }
+            if ch == "}" && top != "{" { return false }
+        }
+        i = i + 1
+    }
+    return st.is_empty()
+}
+
+printx("Balanced '{[()]}'? " + is_brackets_balanced("{[()]}"))
+printx("Balanced '{[(])}'? " + is_brackets_balanced("{[(])}"))
+printx("Balanced '((a + b) * [c - d])'? " + is_brackets_balanced("((a + b) * [c - d])"))
+
+unmountx

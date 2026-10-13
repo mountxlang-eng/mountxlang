@@ -1,0 +1,14 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# collections.mx - one import for every data structure
+# Current interpreter: use plain names  newx Stack(), newx BST(), ...
+# With the re-export patch:            ds.Stack, ds.Queue, ... also work
+
+importx stack
+importx queue
+importx linkedlist
+importx bst
+importx hashtable
+
+func info() {
+    return "Stack, Queue, LinkedList(+LLNode), BST(+BstNode), HashTable"
+}

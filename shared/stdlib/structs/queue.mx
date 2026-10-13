@@ -1,0 +1,63 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# queue.mx - FIFO queue (O(1) dequeue via head cursor; compacts at 64)
+
+classx Queue {
+    let items = []
+    let head = 0
+
+    func enqueue(v) {
+        this.items = this.items + [v]
+        return this
+    }
+
+    # nullx when empty
+    func dequeue() {
+        if this.head >= len(this.items) {
+            return nullx
+        }
+        let v = this.items[this.head]
+        this.head = this.head + 1
+        if this.head >= 64 {
+            let rest = []
+            let i = this.head
+            while i < len(this.items) {
+                rest = rest + [this.items[i]]
+                i = i + 1
+            }
+            this.items = rest
+            this.head = 0
+        }
+        return v
+    }
+
+    func peek() {
+        if this.head >= len(this.items) {
+            return nullx
+        }
+        return this.items[this.head]
+    }
+
+    func size() {
+        return len(this.items) - this.head
+    }
+
+    func is_empty() {
+        return this.head >= len(this.items)
+    }
+
+    func clear() {
+        this.items = []
+        this.head = 0
+    }
+
+    # front -> back
+    func to_array() {
+        let out = []
+        let i = this.head
+        while i < len(this.items) {
+            out = out + [this.items[i]]
+            i = i + 1
+        }
+        return out
+    }
+}

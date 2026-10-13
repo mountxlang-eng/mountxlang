@@ -1,0 +1,84 @@
+# examples/08_projects/01_todo_cli/main.mx
+# Project 1: SQLite-backed To-Do List Manager
+
+mountx
+importx db
+importx os
+
+classx TodoApp {
+    let conn = nullx
+
+    func init(db_path) {
+        this.conn = db.open(db_path)
+        db.exec(this.conn, "CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY AUTOINCREMENT, task TEXT, priority TEXT, done INTEGER DEFAULT 0);")
+    }
+
+    func add_task(task_text, priority) {
+        let p = priority
+        if p == nullx { p = "NORMAL" }
+        db.exec_params(this.conn, "INSERT INTO todos (task, priority, done) VALUES (?, ?, 0);", [task_text, p])
+        printx("✔ Added: [" + p + "] " + task_text)
+    }
+
+    func complete_task(task_id) {
+        let count = db.exec_params(this.conn, "UPDATE todos SET done = 1 WHERE id = ?;", [task_id])
+        if count > 0 {
+            printx("✔ Marked task #" + task_id + " as completed.")
+        } else {
+            printx("✖ Task #" + task_id + " not found.")
+        }
+    }
+
+    func list_tasks() {
+        printx("\n--- To-Do List ---")
+        let rows = db.query(this.conn, "SELECT id, task, priority, done FROM todos ORDER BY done ASC, id ASC;")
+        if len(rows) == 0 {
+            printx("No tasks found. Your list is clean!")
+            return
+        }
+        for r in rows {
+            let status = "[ ]"
+            if r[3] == 1 { status = "[X]" }
+            printx(status + " #" + r[0] + " [" + r[2] + "] " + r[1])
+        }
+        printx("------------------\n")
+    }
+
+    func stats() {
+        let total = db.query_value(this.conn, "SELECT count(*) FROM todos;")
+        let completed = db.query_value(this.conn, "SELECT count(*) FROM todos WHERE done = 1;")
+        let pending = total - completed
+        printx("Summary: " + total + " total | " + completed + " completed | " + pending + " pending\n")
+    }
+
+    func close() {
+        db.close(this.conn)
+    }
+}
+
+# Run demo
+let db_file = os.path_join([os.cwd(), "tmp_todo_demo.db"])
+os.system("rm -f " + db_file)
+
+let app = newx TodoApp(db_file)
+
+printx("=== MountX To-Do CLI Application ===")
+app.add_task("Finish MountX C substrate", "HIGH")
+app.add_task("Implement native HTTP GET & POST", "CRITICAL")
+app.add_task("Write comprehensive examples suite", "HIGH")
+app.add_task("Plan future MountX Bytecode VM", "NORMAL")
+
+app.list_tasks()
+
+# Complete a couple of tasks
+app.complete_task(1)
+app.complete_task(2)
+
+app.list_tasks()
+app.stats()
+
+app.close()
+os.system("rm -f " + db_file)
+printx("Project 1 finished cleanly.")
+
+unmountx

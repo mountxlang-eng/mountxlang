@@ -1,0 +1,1387 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+mountx
+# selfhost/parser.mx - the MountX parser, written in MountX. A port of parser.py.
+#
+#   parse(tokens)      -> the Program Node                       (parser.py:422)
+#   parse_src(src)     -> parse(lex(src)), the interpreter's wrapper included (A4)
+#   parse_print(src)   -> print the canonical AST dump, or one "ERR|<message>"
+#                         line when the parse raises (PARSER_DESIGN 13, A2)
+#   dump(node)         -> the same dump as one string - small inputs only, the
+#                         corpus path is parse_print (PARSER_DESIGN 12)
+#
+# Transcription is the default: a method below mirrors the method of parser.py it
+# is named after, in the same order, so the two files can be read side by side.
+# The three deviations, all recorded in PARSER_DESIGN 9:
+#   D-1  peek() is not ported - parser.py defines it and never calls it
+#   D-2  the oracle's inline `type in (...)` tests become named helpers
+#   D-3  eat(expected=None) splits into eat() and eat_is(kind)
+#
+# Two renderers, deliberately never merged (PARSER_DESIGN 14.2): the dump spells a
+# value null / true / 1.5 / s..., an error message spells the same value None /
+# True / 1.5 / 'x', and a NULL token carries the text "nil" in the AST but prints
+# 'nil' in a message, because lexer.py never converts NULL. tok_value feeds the
+# AST and mirrors lexer.py:167-174; err_value feeds messages and mirrors the {!r}.
+
+importx string
+importx lexer
+
+# ---- Node: kind plus sparse fields (PARSER_DESIGN 8) -----------------------
+# No init arguments, and no builder pre-fills a field the oracle would leave
+# unset: that would turn a loud "Field not found" from the dump into a quiet
+# null, which is the one failure mode this port cannot afford.
+classx Node {
+    let kind = ""
+    let line = 0
+}
+
+# ---- one builder per node type, 35 of them (PARSER_DESIGN 13) --------------
+# Each sets exactly the keys its dict literal in parser.py sets - the comments
+# give the line - and `kind` carries the oracle's "type" string verbatim.
+func mk_program(body, ln) {
+    let n = newx Node()
+    n.kind = "Program"        # :60
+    n.line = ln
+    n.body = body
+    return n
+}
+
+func mk_let(name, value, ln) {
+    let n = newx Node()
+    n.kind = "Let"            # :93
+    n.line = ln
+    n.name = name
+    n.value = value
+    return n
+}
+
+func mk_print(value, ln) {
+    let n = newx Node()
+    n.kind = "Print"          # :99
+    n.line = ln
+    n.value = value
+    return n
+}
+
+func mk_import(name, ln) {
+    let n = newx Node()
+    n.kind = "Import"         # :105
+    n.line = ln
+    n.name = name
+    return n
+}
+
+func mk_classdef(name, parent, fields, methods, init, ln) {
+    let n = newx Node()
+    n.kind = "ClassDef"       # :141
+    n.line = ln
+    n.name = name
+    n.parent = parent
+    n.fields = fields
+    n.methods = methods
+    n.init = init
+    return n
+}
+
+func mk_field(name, value, ln) {
+    # the 35th shape: a class field, which in parser.py:129 is a bare dict with
+    # no "type" key at all. It has no "init" either, so the dump takes its shape
+    # from the parent's field name instead of from a key inside it.
+    let n = newx Node()
+    n.kind = "FIELD"
+    n.line = ln
+    n.name = name
+    n.value = value
+    return n
+}
+
+func mk_break(ln) {
+    let n = newx Node()
+    n.kind = "Break"          # :76
+    n.line = ln
+    return n
+}
+
+func mk_continue(ln) {
+    let n = newx Node()
+    n.kind = "Continue"       # :79
+    n.line = ln
+    return n
+}
+
+func mk_funcdef(name, params, body, ln) {
+    let n = newx Node()
+    n.kind = "FuncDef"        # :229
+    n.line = ln
+    n.name = name
+    n.params = params
+    n.body = body
+    return n
+}
+
+func mk_return(value, ln) {
+    let n = newx Node()
+    n.kind = "Return"         # :234
+    n.line = ln
+    n.value = value
+    return n
+}
+
+func mk_trycatch(try_body, catch_var, catch_body, ln) {
+    let n = newx Node()
+    n.kind = "TryCatch"       # :246
+    n.line = ln
+    n.try_body = try_body
+    n.catch_var = catch_var
+    n.catch_body = catch_body
+    return n
+}
+
+func mk_throw(value, ln) {
+    let n = newx Node()
+    n.kind = "Throw"          # :251
+    n.line = ln
+    n.value = value
+    return n
+}
+
+func mk_if(condition, then_b, else_b, ln) {
+    let n = newx Node()
+    n.kind = "If"             # :181
+    n.line = ln
+    n.condition = condition
+    n.then = then_b
+    # the field is else_b, not else: "else" is a keyword here and a DotAccess
+    # needs an IDENT after the dot. The dump still spells it "else=", which is
+    # the oracle's key and what PARSER_DESIGN 13 pins.
+    n.else_b = else_b
+    return n
+}
+
+func mk_while(condition, body, ln) {
+    let n = newx Node()
+    n.kind = "While"          # :187
+    n.line = ln
+    n.condition = condition
+    n.body = body
+    return n
+}
+
+func mk_loop(count, body, ln) {
+    let n = newx Node()
+    n.kind = "Loop"           # :193
+    n.line = ln
+    n.count = count
+    n.body = body
+    return n
+}
+
+func mk_forin(var1, var2, iterable, body, ln) {
+    let n = newx Node()
+    n.kind = "ForIn"          # :205
+    n.line = ln
+    n.var = var1
+    n.var2 = var2
+    n.iterable = iterable
+    n.body = body
+    return n
+}
+
+func mk_assign(target, value, ln) {
+    let n = newx Node()
+    n.kind = "Assign"         # :167
+    n.line = ln
+    n.target = target
+    n.value = value
+    return n
+}
+
+func mk_exprstmt(expr, ln) {
+    let n = newx Node()
+    n.kind = "ExprStmt"       # :86, :168
+    n.line = ln
+    n.expr = expr
+    return n
+}
+
+func mk_binop(op, left, right, ln) {
+    let n = newx Node()
+    n.kind = "BinOp"          # :262 and the four siblings
+    n.line = ln
+    n.op = op
+    n.left = left
+    n.right = right
+    return n
+}
+
+func mk_unaryop(op, value, ln) {
+    let n = newx Node()
+    n.kind = "UnaryOp"        # :300
+    n.line = ln
+    n.op = op
+    n.value = value
+    return n
+}
+
+func mk_call(callee, args, ln) {
+    let n = newx Node()
+    n.kind = "Call"           # :315, and the len desugar at :361
+    n.line = ln
+    n.callee = callee
+    n.args = args
+    return n
+}
+
+func mk_dotaccess(object, field, ln) {
+    let n = newx Node()
+    n.kind = "DotAccess"      # :319
+    n.line = ln
+    n.object = object
+    n.field = field
+    return n
+}
+
+func mk_index(array, index, ln) {
+    let n = newx Node()
+    n.kind = "Index"          # :324
+    n.line = ln
+    n.array = array
+    n.index = index
+    return n
+}
+
+func mk_literal(value, value_type, ln) {
+    let n = newx Node()
+    n.kind = "Literal"        # :333, :336
+    n.line = ln
+    n.value = value
+    n.value_type = value_type
+    return n
+}
+
+func mk_ident(name, ln) {
+    let n = newx Node()
+    n.kind = "Ident"          # :339
+    n.line = ln
+    n.name = name
+    return n
+}
+
+func mk_this(ln) {
+    let n = newx Node()
+    n.kind = "This"           # :342
+    n.line = ln
+    return n
+}
+
+func mk_super(ln) {
+    let n = newx Node()
+    n.kind = "Super"          # :345
+    n.line = ln
+    return n
+}
+
+func mk_input(prompt, ln) {
+    let n = newx Node()
+    n.kind = "Input"          # :354
+    n.line = ln
+    n.prompt = prompt
+    return n
+}
+
+func mk_typeof(value, ln) {
+    let n = newx Node()
+    n.kind = "TypeOf"         # :368
+    n.line = ln
+    n.value = value
+    return n
+}
+
+func mk_new(class_name, args, ln) {
+    let n = newx Node()
+    n.kind = "New"            # :384
+    n.line = ln
+    # class_name, not class: "class" is a keyword here, so it cannot follow a
+    # dot. The dump spells the field "class=", the oracle's key.
+    n.class_name = class_name
+    n.args = args
+    return n
+}
+
+func mk_arrayliteral(elements, ln) {
+    let n = newx Node()
+    n.kind = "ArrayLiteral"   # :419
+    n.line = ln
+    n.elements = elements
+    return n
+}
+
+func mk_read(args, ln) {
+    let n = newx Node()
+    n.kind = "Read"           # :398
+    n.line = ln
+    n.args = args
+    return n
+}
+
+func mk_write(args, ln) {
+    let n = newx Node()
+    n.kind = "Write"          # :398
+    n.line = ln
+    n.args = args
+    return n
+}
+
+func mk_append(args, ln) {
+    let n = newx Node()
+    n.kind = "Append"         # :398
+    n.line = ln
+    n.args = args
+    return n
+}
+
+func mk_export(args, ln) {
+    let n = newx Node()
+    n.kind = "Export"         # :398
+    n.line = ln
+    n.args = args
+    return n
+}
+
+# ---- membership tests (deviation D-2) --------------------------------------
+# parser.py tests `current().type in (...)` against tuple and frozenset literals;
+# MountX has neither, so each set becomes a chain. Members and their order are
+# copied from the oracle, and each chain returns early - the 20-test one costs
+# 24 us when every branch runs and about half that when it can bail early
+# (PARSER_DESIGN 7, 12).
+func is_expr_starter(kind) {
+    # EXPR_STARTERS, parser.py:3-8, all 20 members
+    if kind == "INT" { return true }
+    if kind == "FLOAT" { return true }
+    if kind == "STRING" { return true }
+    if kind == "BOOL" { return true }
+    if kind == "NULL" { return true }
+    if kind == "MINUS" { return true }
+    if kind == "NOT" { return true }
+    if kind == "IDENT" { return true }
+    if kind == "THISX" { return true }
+    if kind == "SUPER" { return true }
+    if kind == "LPAREN" { return true }
+    if kind == "LBRACK" { return true }
+    if kind == "INPUTX" { return true }
+    if kind == "LEN" { return true }
+    if kind == "TYPEOF" { return true }
+    if kind == "NEWX" { return true }
+    if kind == "READX" { return true }
+    if kind == "WRITEX" { return true }
+    if kind == "APPENDX" { return true }
+    if kind == "EXPORTX" { return true }
+    return false
+}
+
+func is_compare_op(kind) {
+    # parser.py:275
+    if kind == "EQEQ" { return true }
+    if kind == "NEQ" { return true }
+    if kind == "GT" { return true }
+    if kind == "LT" { return true }
+    if kind == "GTE" { return true }
+    if kind == "LTE" { return true }
+    return false
+}
+
+func is_additive_op(kind) {
+    # parser.py:283
+    if kind == "PLUS" { return true }
+    if kind == "MINUS" { return true }
+    return false
+}
+
+func is_multiplicative_op(kind) {
+    # parser.py:291
+    if kind == "MUL" { return true }
+    if kind == "DIV" { return true }
+    if kind == "MOD" { return true }
+    return false
+}
+
+func builtin_arity(kind) {
+    # FILE_BUILTINS, parser.py:10-15: the node type is the kind itself, so only
+    # the arity has to travel. -1 means "not a file builtin", which the oracle
+    # spells as `kind not in FILE_BUILTINS`.
+    if kind == "READX" { return 1 }
+    if kind == "WRITEX" { return 2 }
+    if kind == "APPENDX" { return 2 }
+    if kind == "EXPORTX" { return 2 }
+    return -1
+}
+
+# ---- the value the oracle has that Token does not ---------------------------
+# lexer.py:167-174 converts a token's text into a value before parser.py ever
+# sees it, and the AST stores that value. lexer.mx's Token keeps the lexeme
+# instead, because phase 1's E3 says the canonical token stream carries "007" -
+# so the conversion the parser needs lives here, not on Token (P4). The table
+# mirrors lexer.py line for line; A3 makes the result a value, not a lexeme.
+func tok_value(tok) {
+    let t = tok.ttype
+    if t == "STRING" { return tok.decoded }     # already decoded by the lexer
+    if t == "INT" { return string.tonum(tok.lexeme) }
+    if t == "FLOAT" { return string.tonum(tok.lexeme) }
+    if t == "BOOL" { return tok.lexeme == "true" }
+    # NULL is never converted by lexer.py:167-174, so the value the oracle holds is
+    # the lexeme it matched - 'nullx' for `nullx`, 'nil' for `nil`. Returning a
+    # hardcoded "nil" here would be an invented value, and the corpus case that
+    # writes the other spellings would not catch it because the dump renders NULL
+    # from value_type and never looks at the value (PARSER_DESIGN 13).
+    return tok.lexeme
+}
+
+# The *other* renderer, for the ({v!r}) of eight error templates. It is not the
+# dump's rule and must never be merged with it (PARSER_DESIGN 14.2): Python spells
+# None and True where the dump spells null and true.
+#
+# Each row was read off the oracle rather than off this f-string, and two of them
+# are the opposite of what the lexeme suggests: INT and FLOAT carry the CONVERTED
+# number, so `let 007 = 1` answers `got INT (7)` and `let 1.500 = 1` answers
+# `got FLOAT (1.5)` - lexer.py:169-172 already replaced the text by then. STRING is
+# the DECODED value, so `"a'b"` renders as "a'b" and `"a\tb"` as 'a\tb'. NULL is the
+# one kind lexer.py leaves as written, which is why its row is the lexeme and not
+# the literal 'nil'.
+func err_value(tok) {
+    let t = tok.ttype
+    if t == "EOF" { return "None" }              # lexer.py:178 stores None
+    if t == "BOOL" {
+        if tok.lexeme == "true" { return "True" }
+        return "False"
+    }
+    if t == "INT" || t == "FLOAT" { return "" + tok_value(tok) }
+    if t == "STRING" { return lexer.py_repr(tok.decoded) }
+    return lexer.py_repr(tok.lexeme)             # NULL, symbols, keywords: the lexeme
+}
+
+# ---- Parser: mirrors parser.py:18-419, method for method -------------------
+classx Parser {
+    let tokens = []
+    let pos = 0
+
+    func error(message) {
+        # :44-46. The position is the current token's - the offending one, never
+        # the construct being parsed, which is why `f().g.h = 1` reports the
+        # column of the `=` and not of the `f`.
+        let tok = this.current()
+        throwx "[Parser] Line " + tok.line + ", col " + tok.column + ": " + message
+    }
+
+    func init(tokens) {
+        this.tokens = tokens
+        this.pos = 0
+        if len(this.tokens) == 0 {
+            # :20-21, and reachable: parse([]) answers "Program must start with
+            # mountx" at line 1 col 1 against the oracle
+            this.tokens = [newx lexer.Token("EOF", "", 1, 1)]
+        }
+    }
+
+    func current() {
+        # :25-29. The past-end branch is unreachable from lex()'s output (EOF is
+        # always last and nothing eats it unconditionally) but parse(tokens) is
+        # public, so it stays: without it a short array gives MountX an index
+        # error where the oracle gives a [Parser] diagnostic.
+        if this.pos < len(this.tokens) {
+            return this.tokens[this.pos]
+        }
+        if len(this.tokens) == 0 {
+            return newx lexer.Token("EOF", "", 1, 1)
+        }
+        let last = this.tokens[len(this.tokens) - 1]
+        return newx lexer.Token("EOF", "", last.line, last.column)
+    }
+
+    func eat() {
+        # :37-42 with expected=None: advance unconditionally, return the token
+        let t = this.current()
+        this.pos = this.pos + 1
+        return t
+    }
+
+    func eat_is(expected) {
+        # :37-42 with a kind: check, then advance. Deviation D-3 - the default
+        # argument cannot be ported, and splitting keeps the error in one place.
+        let t = this.current()
+        if t.ttype != expected {
+            this.error("Expected " + expected + ", got " + t.ttype + " (" + err_value(t) + ")")
+        }
+        this.pos = this.pos + 1
+        return t
+    }
+
+    func parse() {
+        # :48-60
+        if this.current().ttype != "MOUNTX" {
+            this.error("Program must start with mountx")
+        }
+        this.eat_is("MOUNTX")
+        let body = []
+        while this.current().ttype != "UNMOUNTX" && this.current().ttype != "EOF" {
+            body = body + [this.parse_statement()]
+        }
+        if this.current().ttype == "EOF" {
+            this.error("Program is missing unmountx")
+        }
+        this.eat_is("UNMOUNTX")
+        if this.current().ttype != "EOF" {
+            this.error("Unexpected code after unmountx")
+        }
+        return mk_program(body, 1)
+    }
+
+    func parse_statement() {
+        # :62-87, the 15-branch statement dispatch - 17 us a call, cheaper than
+        # any table the host could build (PARSER_DESIGN 12)
+        let kind = this.current().ttype
+        if kind == "LET" { return this.parse_let() }
+        if kind == "PRINTX" { return this.parse_print() }
+        if kind == "IMPORTX" { return this.parse_import() }
+        if kind == "IF" { return this.parse_if() }
+        if kind == "WHILE" { return this.parse_while() }
+        if kind == "LOOP" { return this.parse_loop() }
+        if kind == "FOR" { return this.parse_for() }
+        if kind == "FUNC" { return this.parse_function() }
+        if kind == "CLASSX" { return this.parse_class() }
+        if kind == "RETURN" { return this.parse_return() }
+        if kind == "BREAK" {
+            let t = this.eat_is("BREAK")
+            return mk_break(t.line)
+        }
+        if kind == "CONTINUE" {
+            let t = this.eat_is("CONTINUE")
+            return mk_continue(t.line)
+        }
+        if kind == "TRYX" { return this.parse_try() }
+        if kind == "THROWX" { return this.parse_throw() }
+        if kind == "IDENT" || kind == "THISX" || kind == "SUPER" {
+            return this.parse_assignment_or_expression()
+        }
+        if is_expr_starter(kind) {
+            let expr = this.parse_expression()
+            return mk_exprstmt(expr, expr.line)
+        }
+        let cur = this.current()
+        this.error("Unexpected token " + kind + " (" + err_value(cur) + ")")
+    }
+
+    func parse_let() {
+        # :89-93
+        let tok = this.eat_is("LET")
+        let name = this.eat_is("IDENT").lexeme
+        this.eat_is("ASSIGN")
+        let value = this.parse_expression()
+        return mk_let(name, value, tok.line)
+    }
+
+    func parse_print() {
+        # :95-99, the oracle's PRINTX statement handler. It shares a name with the
+        # module-level parse_print() entry point below; the two never meet, since
+        # this one is reached only as this.parse_print() and that one only as a
+        # bare call in the module namespace.
+        let tok = this.eat_is("PRINTX")
+        this.eat_is("LPAREN")
+        let value = this.parse_expression()
+        this.eat_is("RPAREN")
+        return mk_print(value, tok.line)
+    }
+
+    func parse_import() {
+        # :101-105
+        let tok = this.eat_is("IMPORTX")
+        let name = this.eat_is("IDENT").lexeme
+        return mk_import(name, tok.line)
+    }
+
+    func parse_class() {
+        # :107-142
+        let tok = this.eat_is("CLASSX")
+        let name = this.eat_is("IDENT").lexeme
+        let parent = nil
+        if this.current().ttype == "EXTENDS" {
+            this.eat_is("EXTENDS")
+            parent = this.eat_is("IDENT").lexeme
+            while this.current().ttype == "DOT" {
+                this.eat_is("DOT")
+                parent = parent + "." + this.eat_is("IDENT").lexeme
+            }
+        }
+        let open_tok = this.eat_is("LBRACE")
+        let fields = []
+        let methods = []
+        let init_node = nil
+        while this.current().ttype != "RBRACE" && this.current().ttype != "EOF" {
+            if this.current().ttype == "LET" {
+                let f_tok = this.eat_is("LET")
+                let f_name = this.eat_is("IDENT").lexeme
+                this.eat_is("ASSIGN")
+                let f_val = this.parse_expression()
+                fields = fields + [mk_field(f_name, f_val, f_tok.line)]
+            } else if this.current().ttype == "FUNC" {
+                let meth = this.parse_function()
+                if meth.name == "init" {
+                    if init_node != nil {
+                        this.error("Duplicate init function in class '" + name + "'")
+                    }
+                    init_node = meth
+                } else {
+                    methods = methods + [meth]
+                }
+            } else {
+                this.error("Unexpected token " + this.current().ttype + " in class body (expected a 'let' field or 'func' method)")
+            }
+        }
+        if this.current().ttype == "EOF" {
+            # :122-123: an *opening* line interpolated into a message reported at
+            # the current position, and reachable only at EOF - truncating the
+            # file at unmountx lands on the class-body branch above instead.
+            this.error("Missing closing } for class '" + name + "' (opened on line " + open_tok.line + ")")
+        }
+        this.eat_is("RBRACE")
+        return mk_classdef(name, parent, fields, methods, init_node, tok.line)
+    }
+
+    func _is_assignable_base(node) {
+        # :144-152
+        let t = node.kind
+        if t == "Ident" || t == "This" || t == "Super" {
+            return true
+        }
+        if t == "DotAccess" {
+            return this._is_assignable_base(node.object)
+        }
+        if t == "Index" {
+            return this._is_assignable_base(node.array)
+        }
+        return false
+    }
+
+    func parse_assignment_or_expression() {
+        # :154-168. The line is the target's - `expr.get("line", 0)` at :167, where
+        # the ", 0" is dead: every expression node the oracle builds carries a line.
+        # The port reads the field and invents no zero default, because a zero
+        # would silently pass where the oracle could never produce one.
+        let expr = this.parse_expression()
+        if this.current().ttype == "ASSIGN" {
+            let t = expr.kind
+            if t == "This" || t == "Super" {
+                let low = string.lower(t)
+                this.error("Cannot assign to '" + low + "' - '" + low + " = ...' is invalid")
+            }
+            if t != "Ident" && t != "DotAccess" && t != "Index" {
+                this.error("Invalid assignment target: " + t)
+            }
+            if t == "DotAccess" && !this._is_assignable_base(expr.object) {
+                this.error("Cannot assign to a property of a temporary value")
+            }
+            if t == "Index" && !this._is_assignable_base(expr.array) {
+                this.error("Cannot assign into a temporary value")
+            }
+            this.eat_is("ASSIGN")
+            let val = this.parse_expression()
+            return mk_assign(expr, val, expr.line)
+        }
+        return mk_exprstmt(expr, expr.line)
+    }
+
+    func parse_if() {
+        # :170-181. `else` is a list, never an absent field: `else if` puts a nested
+        # If into a one-element list rather than parsing a block.
+        let tok = this.eat_is("IF")
+        let cond = this.parse_expression()
+        let then_b = this.parse_block()
+        let else_b = []
+        if this.current().ttype == "ELSE" {
+            this.eat_is("ELSE")
+            if this.current().ttype == "IF" {
+                else_b = [this.parse_if()]
+            } else {
+                else_b = this.parse_block()
+            }
+        }
+        return mk_if(cond, then_b, else_b, tok.line)
+    }
+
+    func parse_while() {
+        # :183-187
+        let tok = this.eat_is("WHILE")
+        let cond = this.parse_expression()
+        let body = this.parse_block()
+        return mk_while(cond, body, tok.line)
+    }
+
+    func parse_loop() {
+        # :189-193
+        let tok = this.eat_is("LOOP")
+        let count = this.parse_expression()
+        let body = this.parse_block()
+        return mk_loop(count, body, tok.line)
+    }
+
+    func parse_for() {
+        # :195-205
+        let tok = this.eat_is("FOR")
+        let var1 = this.eat_is("IDENT").lexeme
+        let var2 = nil
+        if this.current().ttype == "COMMA" {
+            this.eat_is("COMMA")
+            var2 = this.eat_is("IDENT").lexeme
+        }
+        this.eat_is("IN")
+        let it = this.parse_expression()
+        let body = this.parse_block()
+        return mk_forin(var1, var2, it, body, tok.line)
+    }
+
+    func parse_block() {
+        # :207-215
+        let open_tok = this.eat_is("LBRACE")
+        let body = []
+        while this.current().ttype != "RBRACE" && this.current().ttype != "EOF" {
+            body = body + [this.parse_statement()]
+        }
+        if this.current().ttype == "EOF" {
+            # :212-213, and only at EOF: `if true { let x = 1 unmountx` answers
+            # template 5 at the unmountx instead
+            this.error("Missing closing } for block opened on line " + open_tok.line + "")
+        }
+        this.eat_is("RBRACE")
+        return body
+    }
+
+    func parse_function() {
+        # :217-229
+        let tok = this.eat_is("FUNC")
+        let name = this.eat_is("IDENT").lexeme
+        this.eat_is("LPAREN")
+        let params = []
+        if this.current().ttype != "RPAREN" {
+            params = params + [this.eat_is("IDENT").lexeme]
+            while this.current().ttype == "COMMA" {
+                this.eat_is("COMMA")
+                params = params + [this.eat_is("IDENT").lexeme]
+            }
+        }
+        this.eat_is("RPAREN")
+        let body = this.parse_block()
+        return mk_funcdef(name, params, body, tok.line)
+    }
+
+    func parse_return() {
+        # :231-234. `return` with nothing after it carries no value at all, which
+        # is why this node type is an optional-child shape and not a required one.
+        let tok = this.eat_is("RETURN")
+        let value = nil
+        if is_expr_starter(this.current().ttype) {
+            value = this.parse_expression()
+        }
+        return mk_return(value, tok.line)
+    }
+
+    func parse_try() {
+        # :236-246
+        let tok = this.eat_is("TRYX")
+        let try_b = this.parse_block()
+        if this.current().ttype != "CATCHX" {
+            this.error("tryx must be followed by catchx(...)")
+        }
+        this.eat_is("CATCHX")
+        this.eat_is("LPAREN")
+        let var1 = this.eat_is("IDENT").lexeme
+        this.eat_is("RPAREN")
+        let catch_b = this.parse_block()
+        return mk_trycatch(try_b, var1, catch_b, tok.line)
+    }
+
+    func parse_throw() {
+        # :248-251 - throwx and the throw alias both land on THROWX
+        let tok = this.eat_is("THROWX")
+        let v = this.parse_expression()
+        return mk_throw(v, tok.line)
+    }
+
+    # precedence: or < and < comparison < additive < multiplicative < unary <
+    # postfix. The ladder is five frames deep plus one per parenthesis, which the
+    # host survives to about 250 levels of parenthesization - two orders above the
+    # deepest anywhere in this repository, which is 2 (PARSER_DESIGN 11, V1). So it
+    # transcribes as written instead of becoming a second parser.
+    func parse_expression() {
+        # :254-255
+        return this.parse_logical_or()
+    }
+
+    func parse_logical_or() {
+        # :257-263
+        let left = this.parse_logical_and()
+        while this.current().ttype == "OR" {
+            let op_tok = this.eat()
+            let right = this.parse_logical_and()
+            left = mk_binop(op_tok.ttype, left, right, op_tok.line)
+        }
+        return left
+    }
+
+    func parse_logical_and() {
+        # :265-271
+        let left = this.parse_comparison()
+        while this.current().ttype == "AND" {
+            let op_tok = this.eat()
+            let right = this.parse_comparison()
+            left = mk_binop(op_tok.ttype, left, right, op_tok.line)
+        }
+        return left
+    }
+
+    func parse_comparison() {
+        # :273-279
+        let left = this.parse_additive()
+        while is_compare_op(this.current().ttype) {
+            let op_tok = this.eat()
+            let right = this.parse_additive()
+            left = mk_binop(op_tok.ttype, left, right, op_tok.line)
+        }
+        return left
+    }
+
+    func parse_additive() {
+        # :281-287
+        let left = this.parse_multiplicative()
+        while is_additive_op(this.current().ttype) {
+            let op_tok = this.eat()
+            let right = this.parse_multiplicative()
+            left = mk_binop(op_tok.ttype, left, right, op_tok.line)
+        }
+        return left
+    }
+
+    func parse_multiplicative() {
+        # :289-295
+        let left = this.parse_unary()
+        while is_multiplicative_op(this.current().ttype) {
+            let op_tok = this.eat()
+            let right = this.parse_unary()
+            left = mk_binop(op_tok.ttype, left, right, op_tok.line)
+        }
+        return left
+    }
+
+    func parse_unary() {
+        # :297-301. The line is the operator's, not the operand's, and a second
+        # MINUS here is what makes `not -1` two UnaryOps.
+        if this.current().ttype == "MINUS" || this.current().ttype == "NOT" {
+            let tok = this.eat()
+            let inner = this.parse_unary()
+            return mk_unaryop(tok.ttype, inner, tok.line)
+        }
+        return this.parse_postfix()
+    }
+
+    func parse_postfix() {
+        # :303-327. Each suffix takes its line from its own delimiter - the `(`,
+        # the `.`, the `[` - never from the callee, so `f` newline `(3)` reports the
+        # call on the paren's line.
+        let node = this.parse_primary()
+        while true {
+            if this.current().ttype == "LPAREN" {
+                let l_tok = this.eat_is("LPAREN")
+                let args = this.parse_arg_list()
+                node = mk_call(node, args, l_tok.line)
+            } else if this.current().ttype == "DOT" {
+                let dot_tok = this.eat_is("DOT")
+                let field = this.eat_is("IDENT")
+                node = mk_dotaccess(node, field.lexeme, dot_tok.line)
+            } else if this.current().ttype == "LBRACK" {
+                let lb_tok = this.eat_is("LBRACK")
+                let idx = this.parse_expression()
+                this.eat_is("RBRACK")
+                node = mk_index(node, idx, lb_tok.line)
+            } else {
+                return node
+            }
+        }
+    }
+
+    func parse_primary() {
+        # :329-406
+        let tok = this.current()
+        if tok.ttype == "INT" || tok.ttype == "FLOAT" || tok.ttype == "STRING" || tok.ttype == "BOOL" {
+            this.eat()
+            # the value, not the lexeme: "007" is the number 7 here and the dump
+            # says v=7 while the token stream still says 007 (A3)
+            return mk_literal(tok_value(tok), tok.ttype, tok.line)
+        }
+        if tok.ttype == "NULL" {
+            this.eat_is("NULL")
+            # value absent in spirit: the oracle stores None here even though the
+            # token carries the text "nil", which is what a message prints
+            return mk_literal(nil, "NULL", tok.line)
+        }
+        if tok.ttype == "IDENT" {
+            this.eat_is("IDENT")
+            return mk_ident(tok.lexeme, tok.line)
+        }
+        if tok.ttype == "THISX" {
+            this.eat_is("THISX")
+            return mk_this(tok.line)
+        }
+        if tok.ttype == "SUPER" {
+            this.eat_is("SUPER")
+            return mk_super(tok.line)
+        }
+        if tok.ttype == "INPUTX" {
+            # bare `inputx`, `inputx()` and `inputx(p)` are three shapes of one
+            # node type; the repo never uses any of them, so the corpus does
+            this.eat_is("INPUTX")
+            let prompt = nil
+            if this.current().ttype == "LPAREN" {
+                this.eat_is("LPAREN")
+                if this.current().ttype != "RPAREN" {
+                    prompt = this.parse_expression()
+                }
+                this.eat_is("RPAREN")
+            }
+            return mk_input(prompt, tok.line)
+        }
+        if tok.ttype == "LEN" {
+            # the desugar: len / lenx / length all become a Call over Ident "len",
+            # so the spelling is gone from the AST - and the Ident carries the
+            # keyword's line, not the paren's, unlike every real Call
+            this.eat_is("LEN")
+            this.eat_is("LPAREN")
+            let v = this.parse_expression()
+            this.eat_is("RPAREN")
+            return mk_call(mk_ident("len", tok.line), [v], tok.line)
+        }
+        if tok.ttype == "TYPEOF" {
+            this.eat_is("TYPEOF")
+            this.eat_is("LPAREN")
+            let v2 = this.parse_expression()
+            this.eat_is("RPAREN")
+            return mk_typeof(v2, tok.line)
+        }
+        if tok.ttype == "NEWX" {
+            this.eat_is("NEWX")
+            # dotted names allowed: newx dict.Dict(...)
+            let cname = this.eat_is("IDENT").lexeme
+            while this.current().ttype == "DOT" {
+                this.eat_is("DOT")
+                cname = cname + "." + this.eat_is("IDENT").lexeme
+            }
+            this.eat_is("LPAREN")
+            let args = this.parse_arg_list()
+            return mk_new(cname, args, tok.line)
+        }
+        if builtin_arity(tok.ttype) >= 0 {
+            let arity = builtin_arity(tok.ttype)
+            this.eat()
+            this.eat_is("LPAREN")
+            let fargs = this.parse_arg_list()
+            if len(fargs) != arity {
+                # :396-397, and the only template that interpolates the bare
+                # keyword - {!r} would put quotes around it and it has none
+                this.error(tok.lexeme + " expects " + arity + " argument(s), got " + len(fargs) + "")
+            }
+            if tok.ttype == "READX" { return mk_read(fargs, tok.line) }
+            if tok.ttype == "WRITEX" { return mk_write(fargs, tok.line) }
+            if tok.ttype == "APPENDX" { return mk_append(fargs, tok.line) }
+            return mk_export(fargs, tok.line)
+        }
+        if tok.ttype == "LPAREN" {
+            # no Parenthesis node: `(e)` is `e`, line and all, which is why deep
+            # parenthesization costs parse frames and no AST depth
+            this.eat_is("LPAREN")
+            let expr = this.parse_expression()
+            this.eat_is("RPAREN")
+            return expr
+        }
+        if tok.ttype == "LBRACK" {
+            return this.parse_array()
+        }
+        this.error("Unexpected " + tok.ttype + " (" + err_value(tok) + ") inside expression")
+    }
+
+    func parse_arg_list() {
+        # the `(a, b, c)` of a call, a New, or a file builtin - three identical
+        # blocks in the oracle (:309-314, :378-383, :390-395) that share one
+        # behaviour, so the port shares one method. Hoisting it is not a deviation:
+        # D-2 already names the helper pattern, and this copy of the shape cannot
+        # drift from itself.
+        let args = []
+        if this.current().ttype != "RPAREN" {
+            args = args + [this.parse_expression()]
+            while this.current().ttype == "COMMA" {
+                this.eat_is("COMMA")
+                args = args + [this.parse_expression()]
+            }
+        }
+        this.eat_is("RPAREN")
+        return args
+    }
+
+    func parse_array() {
+        # :408-419. The line is the `[`'s, and a trailing comma is legal: the break
+        # below is what makes [1, 2,] two elements rather than an error.
+        let lb = this.eat_is("LBRACK")
+        let elems = []
+        if this.current().ttype != "RBRACK" {
+            elems = elems + [this.parse_expression()]
+            while this.current().ttype == "COMMA" {
+                this.eat_is("COMMA")
+                if this.current().ttype == "RBRACK" {
+                    break
+                }
+                elems = elems + [this.parse_expression()]
+            }
+        }
+        this.eat_is("RBRACK")
+        return mk_arrayliteral(elems, lb.line)
+    }
+}
+
+# ---- the canonical AST dump (PARSER_DESIGN 13) ------------------------------
+# One line per node, pre-order, |-separated: path | kind | line=N | fields. A
+# child node contributes "c" and a line of its own; a list contributes its length
+# and one line per element under name[i]. The per-kind field order is the
+# oracle's dict-literal insertion order, which is the only order that exists in
+# Python and the only order the two sides can agree on - it is a spec, not a
+# guess, and the 35 branches below are its transcription.
+func cpath(p) {
+    # the root is "/" and a child of the root is "/body[0]", not "//body[0]"
+    if p == "/" { return "" }
+    return p
+}
+
+classx Dumper {
+    let stream = false
+    let out = ""
+    let first = true
+
+    func emit(line) {
+        # streaming is the corpus path: the same 4,000 lines cost 34 ms printed
+        # and 190 ms accumulated, because a MountX string grows quadratically
+        if this.stream {
+            printx(line)
+        } else {
+            if !this.first {
+                this.out = this.out + "\n"
+            }
+            this.out = this.out + line
+            this.first = false
+        }
+    }
+
+    func walk_list(list, base) {
+        let i = 0
+        while i < len(list) {
+            this.walk(list[i], base + "[" + i + "]")
+            i = i + 1
+        }
+    }
+
+    func params(ps) {
+        # the one list of strings in the format (FuncDef.params): comma-joined,
+        # each one enc'd, empty list renders as the empty string
+        let out = ""
+        let i = 0
+        while i < len(ps) {
+            if i > 0 {
+                out = out + ","
+            }
+            out = out + lexer.enc(ps[i])
+            i = i + 1
+        }
+        return out
+    }
+
+    func walk(node, path) {
+        let kind = node.kind
+        let line = path + "|" + kind + "|line=" + node.line
+        if kind == "Program" {
+            this.emit(line + "|body=" + len(node.body))
+            this.walk_list(node.body, cpath(path) + "/body")
+            return true
+        }
+        if kind == "FIELD" {
+            # the 35th shape: parser.py:129 builds this dict with no "type" key,
+            # which is why the walker takes the shape from the parent's field name
+            # (fields) and this branch is reachable at all
+            this.emit(line + "|name=s" + lexer.enc(node.name) + "|value=c")
+            this.walk(node.value, cpath(path) + "/value")
+            return true
+        }
+        if kind == "Let" {
+            this.emit(line + "|name=s" + lexer.enc(node.name) + "|value=c")
+            this.walk(node.value, cpath(path) + "/value")
+            return true
+        }
+        if kind == "Print" {
+            this.emit(line + "|value=c")
+            this.walk(node.value, cpath(path) + "/value")
+            return true
+        }
+        if kind == "Import" {
+            this.emit(line + "|name=s" + lexer.enc(node.name))
+            return true
+        }
+        if kind == "ClassDef" {
+            let p = line + "|name=s" + lexer.enc(node.name)
+            if node.parent == nil {
+                p = p + "|parent=-"
+            } else {
+                p = p + "|parent=s" + lexer.enc(node.parent)
+            }
+            # init is an N field: `init=-` when absent and `init=c` followed by the
+            # FuncDef's own line when present, so the suffix has to be chosen before
+            # the line is emitted (PARSER_DESIGN 13's sample ends `|init=c`).
+            let suffix = "|init=-"
+            if node.init != nil {
+                suffix = "|init=c"
+            }
+            this.emit(p + "|fields=" + len(node.fields) + "|methods=" + len(node.methods) + suffix)
+            this.walk_list(node.fields, cpath(path) + "/fields")
+            this.walk_list(node.methods, cpath(path) + "/methods")
+            if node.init != nil {
+                this.walk(node.init, cpath(path) + "/init")
+            }
+            return true
+        }
+        if kind == "Break" {
+            this.emit(line)
+            return true
+        }
+        if kind == "Continue" {
+            this.emit(line)
+            return true
+        }
+        if kind == "FuncDef" {
+            this.emit(line + "|name=s" + lexer.enc(node.name) + "|params=" + this.params(node.params) + "|body=" + len(node.body))
+            this.walk_list(node.body, cpath(path) + "/body")
+            return true
+        }
+        if kind == "Return" {
+            if node.value == nil {
+                # `func g() { return }` - the field exists in the oracle and is
+                # None, which is a third thing: not absent, not a child
+                this.emit(line + "|value=-")
+            } else {
+                this.emit(line + "|value=c")
+                this.walk(node.value, cpath(path) + "/value")
+            }
+            return true
+        }
+        if kind == "TryCatch" {
+            this.emit(line + "|try_body=" + len(node.try_body) + "|catch_var=s" + lexer.enc(node.catch_var) + "|catch_body=" + len(node.catch_body))
+            this.walk_list(node.try_body, cpath(path) + "/try_body")
+            this.walk_list(node.catch_body, cpath(path) + "/catch_body")
+            return true
+        }
+        if kind == "Throw" {
+            this.emit(line + "|value=c")
+            this.walk(node.value, cpath(path) + "/value")
+            return true
+        }
+        if kind == "If" {
+            # else is a list, never absent: `else if` is a one-element list holding
+            # an If, so the only shapes are else=0 and else=1 and else=- never
+            this.emit(line + "|condition=c|then=" + len(node.then) + "|else=" + len(node.else_b))
+            this.walk(node.condition, cpath(path) + "/condition")
+            this.walk_list(node.then, cpath(path) + "/then")
+            this.walk_list(node.else_b, cpath(path) + "/else")
+            return true
+        }
+        if kind == "While" {
+            this.emit(line + "|condition=c|body=" + len(node.body))
+            this.walk(node.condition, cpath(path) + "/condition")
+            this.walk_list(node.body, cpath(path) + "/body")
+            return true
+        }
+        if kind == "Loop" {
+            this.emit(line + "|count=c|body=" + len(node.body))
+            this.walk(node.count, cpath(path) + "/count")
+            this.walk_list(node.body, cpath(path) + "/body")
+            return true
+        }
+        if kind == "ForIn" {
+            let p2 = line + "|var=s" + lexer.enc(node.var)
+            if node.var2 == nil {
+                p2 = p2 + "|var2=-"
+            } else {
+                p2 = p2 + "|var2=s" + lexer.enc(node.var2)
+            }
+            this.emit(p2 + "|iterable=c|body=" + len(node.body))
+            this.walk(node.iterable, cpath(path) + "/iterable")
+            this.walk_list(node.body, cpath(path) + "/body")
+            return true
+        }
+        if kind == "Assign" {
+            this.emit(line + "|target=c|value=c")
+            this.walk(node.target, cpath(path) + "/target")
+            this.walk(node.value, cpath(path) + "/value")
+            return true
+        }
+        if kind == "ExprStmt" {
+            this.emit(line + "|expr=c")
+            this.walk(node.expr, cpath(path) + "/expr")
+            return true
+        }
+        if kind == "BinOp" {
+            this.emit(line + "|op=s" + lexer.enc(node.op) + "|left=c|right=c")
+            this.walk(node.left, cpath(path) + "/left")
+            this.walk(node.right, cpath(path) + "/right")
+            return true
+        }
+        if kind == "UnaryOp" {
+            this.emit(line + "|op=s" + lexer.enc(node.op) + "|value=c")
+            this.walk(node.value, cpath(path) + "/value")
+            return true
+        }
+        if kind == "Call" {
+            this.emit(line + "|callee=c|args=" + len(node.args))
+            this.walk(node.callee, cpath(path) + "/callee")
+            this.walk_list(node.args, cpath(path) + "/args")
+            return true
+        }
+        if kind == "DotAccess" {
+            this.emit(line + "|object=c|field=s" + lexer.enc(node.field))
+            this.walk(node.object, cpath(path) + "/object")
+            return true
+        }
+        if kind == "Index" {
+            this.emit(line + "|array=c|index=c")
+            this.walk(node.array, cpath(path) + "/array")
+            this.walk(node.index, cpath(path) + "/index")
+            return true
+        }
+        if kind == "Literal" {
+            # v= is the dump's scalar rule and nothing to do with err_value: null
+            # and true here, None and True in a message (PARSER_DESIGN 14.2). The
+            # number case is a coercion, never a format - "" + value is the host's
+            # str(), which is the oracle's str() (PARSER_DESIGN 10)
+            let v = node.value
+            let vt = node.value_type
+            let shown = "" + v
+            if vt == "NULL" {
+                shown = "null"
+            }
+            if vt == "BOOL" {
+                if v == true {
+                    shown = "true"
+                } else {
+                    shown = "false"
+                }
+            }
+            if vt == "STRING" {
+                shown = "s" + lexer.enc(v)
+            }
+            this.emit(line + "|v=" + shown + "|vt=" + vt)
+            return true
+        }
+        if kind == "Ident" {
+            this.emit(line + "|name=s" + lexer.enc(node.name))
+            return true
+        }
+        if kind == "This" {
+            this.emit(line)
+            return true
+        }
+        if kind == "Super" {
+            this.emit(line)
+            return true
+        }
+        if kind == "Input" {
+            if node.prompt == nil {
+                this.emit(line + "|prompt=-")
+            } else {
+                this.emit(line + "|prompt=c")
+                this.walk(node.prompt, cpath(path) + "/prompt")
+            }
+            return true
+        }
+        if kind == "TypeOf" {
+            this.emit(line + "|value=c")
+            this.walk(node.value, cpath(path) + "/value")
+            return true
+        }
+        if kind == "New" {
+            this.emit(line + "|class=s" + lexer.enc(node.class_name) + "|args=" + len(node.args))
+            this.walk_list(node.args, cpath(path) + "/args")
+            return true
+        }
+        if kind == "ArrayLiteral" {
+            this.emit(line + "|elements=" + len(node.elements))
+            this.walk_list(node.elements, cpath(path) + "/elements")
+            return true
+        }
+        if kind == "Read" {
+            this.emit(line + "|args=" + len(node.args))
+            this.walk_list(node.args, cpath(path) + "/args")
+            return true
+        }
+        if kind == "Write" {
+            this.emit(line + "|args=" + len(node.args))
+            this.walk_list(node.args, cpath(path) + "/args")
+            return true
+        }
+        if kind == "Append" {
+            this.emit(line + "|args=" + len(node.args))
+            this.walk_list(node.args, cpath(path) + "/args")
+            return true
+        }
+        if kind == "Export" {
+            this.emit(line + "|args=" + len(node.args))
+            this.walk_list(node.args, cpath(path) + "/args")
+            return true
+        }
+        # 35 kinds are all a builder can produce, so this is a bug in the port and
+        # not a program: say so loudly rather than print a line nothing matches
+        throwx "parser.mx: no dump shape for kind '" + kind + "'"
+    }
+}
+
+# ---- entry points ----------------------------------------------------------
+func parse(tokens) {
+    # parser.py:422-423
+    let p = newx Parser(tokens)
+    return p.parse()
+}
+
+func parse_src(src) {
+    # the convenience the interpreter will eventually want; note that it does not
+    # do the headerless wrapping - the harness and main.py both do that (A4)
+    return parse(lexer.lex(src))
+}
+
+func dump(node) {
+    # the whole dump as one string: tests and small inputs only, the corpus path
+    # is parse_print (PARSER_DESIGN 12)
+    let d = newx Dumper()
+    d.walk(node, "/")
+    return d.out
+}
+
+func parse_print(src) {
+    # one line per node to stdout, or one ERR|<message> line - the AST analogue of
+    # lex_print, and the reason the harness diff stays byte-exact without callbacks
+    tryx {
+        let d = newx Dumper()
+        d.stream = true
+        d.walk(parse_src(src), "/")
+    } catchx(e) {
+        printx("ERR|" + e)
+    }
+    return true
+}
+unmountx
+
+
+
+
+
+
+
+
+

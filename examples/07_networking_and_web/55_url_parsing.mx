@@ -1,0 +1,20 @@
+# examples/07_networking_and_web/55_url_parsing.mx
+# URL parsing and component extraction with url module
+
+mountx
+importx url
+
+let raw_url = "https://api.github.com:443/repos/mountx/core?page=2&per_page=50#readme"
+printx("Parsing URL: " + raw_url)
+
+let u = url.parse_url(raw_url)
+printx("Scheme:   " + u.scheme)
+printx("Host:     " + u.host)
+printx("Port:     " + u.port)
+printx("Path:     " + u.path)
+printx("Query:    " + u.query)
+printx("Param 'page':     " + u.param("page"))
+printx("Param 'per_page': " + u.param("per_page"))
+printx("Fragment: " + u.fragment)
+
+unmountx

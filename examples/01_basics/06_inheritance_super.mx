@@ -1,0 +1,62 @@
+# examples/01_basics/06_inheritance_super.mx
+# Inheritance and method overriding with super()
+
+mountx
+
+classx Shape {
+    let name = "Generic Shape"
+
+    func init(shape_name) {
+        this.name = shape_name
+    }
+
+    func describe() {
+        return "I am a " + this.name
+    }
+
+    func area() {
+        return 0.0
+    }
+}
+
+classx Rectangle extends Shape {
+    let width = 0.0
+    let height = 0.0
+
+    func init(w, h) {
+        super("Rectangle")
+        this.width = w
+        this.height = h
+    }
+
+    func area() {
+        return this.width * this.height
+    }
+
+    func describe() {
+        return super.describe() + " with dimensions " + this.width + "x" + this.height
+    }
+}
+
+classx Circle extends Shape {
+    let radius = 0.0
+
+    func init(r) {
+        super("Circle")
+        this.radius = r
+    }
+
+    func area() {
+        return 3.14159 * this.radius * this.radius
+    }
+}
+
+let rect = newx Rectangle(5.0, 4.0)
+printx(rect.describe())
+printx("Rectangle Area: " + rect.area())
+
+let circ = newx Circle(3.0)
+printx(circ.describe())
+printx("Circle Area: " + circ.area())
+
+unmountx

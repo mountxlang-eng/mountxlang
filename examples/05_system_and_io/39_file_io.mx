@@ -1,0 +1,30 @@
+# examples/05_system_and_io/39_file_io.mx
+# Safe file reading, writing, and appending with io module
+
+mountx
+importx io
+importx os
+
+let test_file = os.path_join([os.cwd(), "tmp_sample_file.txt"])
+
+# 1. Write text
+io.write_text(test_file, "Line 1: MountX File I/O\nLine 2: Fast & Native\n")
+printx("Written initial lines to " + test_file)
+
+# 2. Append text
+io.append_text(test_file, "Line 3: Appended successfully\n")
+printx("Appended line 3")
+
+# 3. Read full content
+let content = io.read_text(test_file)
+printx("Full content read:\n" + content)
+
+# 4. Read as lines array
+let lines = io.read_lines(test_file)
+printx("Total lines parsed: " + len(lines))
+
+# Cleanup temporary file
+os.system("rm -f " + test_file)
+printx("Cleaned up temp file.")
+
+unmountx

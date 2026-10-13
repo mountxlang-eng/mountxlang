@@ -1,0 +1,12 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# binary.mx - alias for buffer.mx (system/)
+
+importx buffer
+
+classx Buffer extends buffer.Buffer {}
+
+func create(size) { return buffer.create(size) }
+func from_string(s) { return buffer.from_string(s) }
+func from_array(arr) { return buffer.from_array(arr) }
+func from_hex(hex_str) { return buffer.from_hex(hex_str) }
+func read_file(path) { return buffer.read_file(path) }

@@ -1,0 +1,50 @@
+# examples/04_text_and_regex/35_csv_parser.mx
+# Parsing CSV (Comma-Separated Values) text into structured records
+
+mountx
+importx string
+importx map
+
+func parse_csv(csv_text) {
+    let lines = string.split(string.trim(csv_text), "\n")
+    if len(lines) == 0 { return [] }
+
+    let headers = string.split(string.trim(lines[0]), ",")
+    let records = []
+
+    let i = 1
+    while i < len(lines) {
+        let line = string.trim(lines[i])
+        if line != "" {
+            let cols = string.split(line, ",")
+            let row = []
+            let j = 0
+            while j < len(headers) {
+                let val = ""
+                if j < len(cols) {
+                    val = string.trim(cols[j])
+                }
+                row = row + [[string.trim(headers[j]), val]]
+                j = j + 1
+            }
+            records = records + [row]
+        }
+        i = i + 1
+    }
+    return records
+}
+
+let sample_csv = "id,name,role,salary\n1,Alice,Engineer,95000\n2,Bob,Designer,82000\n3,Charlie,Manager,105000"
+printx("Raw CSV input:\n" + sample_csv)
+printx("")
+
+let rows = parse_csv(sample_csv)
+printx("Parsed " + len(rows) + " records:")
+for rec in rows {
+    let name = map.pairs_get(rec, "name")
+    let role = map.pairs_get(rec, "role")
+    let salary = map.pairs_get(rec, "salary")
+    printx("  - " + name + " (" + role + ") -> $" + salary)
+}
+
+unmountx

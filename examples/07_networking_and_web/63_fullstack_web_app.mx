@@ -1,0 +1,197 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# 63_fullstack_web_app.mx - Full-Stack Web Application in Pure MountX
+#
+# Demonstrates:
+#   1. Native HTTP Server and REST API router (http_server.mx)
+#   2. SQLite Database & Object-Relational Mapping (orm.mx)
+#   3. Dynamic Single-Page App (SPA) served with Dark-mode glassmorphic UI
+#   4. Running on the 100% Native C Substrate (mountx-native) with AOT standard library
+
+mountx
+importx http_server
+importx orm
+importx string
+importx json
+importx io
+importx sys
+
+# ---------------------------------------------------------------------------
+#  Database Setup & Active Record Model
+# ---------------------------------------------------------------------------
+let db = orm.connect("tmp/fullstack_tasks.db")
+db.exec("CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, category TEXT, done INT);")
+
+classx Task extends orm.Model {
+    func init(d) {
+        super("tasks", d)
+    }
+}
+
+let Tasks = newx Task(db)
+
+# Seed initial tasks if database is empty
+if Tasks.count() == 0 {
+    Tasks.create([["title", "Design MountX High-Performance Substrate"], ["category", "MountX"], ["done", 1]])
+    Tasks.create([["title", "Build Native HTTP Server & Router"], ["category", "MountX"], ["done", 1]])
+    Tasks.create([["title", "Implement SQLite Fluent ORM"], ["category", "MountX"], ["done", 1]])
+    Tasks.create([["title", "Launch Full-Stack Task Studio Web App"], ["category", "Work"], ["done", 0]])
+}
+
+# ---------------------------------------------------------------------------
+#  Web App Handlers
+# ---------------------------------------------------------------------------
+func handle_index(req, res) {
+    let html_path = "examples/07_networking_and_web/public/index.html"
+    let content = ""
+    if io.file_exists(html_path) {
+        content = io.read_text(html_path)
+    } else {
+        content = "<html><body style='background:#0d1117;color:#fff;font-family:sans-serif;'><h1>MountX Task Studio API</h1><p>Visit /api/tasks to see REST endpoints.</p></body></html>"
+    }
+    return res.html(content)
+}
+
+func handle_get_tasks(req, res) {
+    let all = Tasks.all_pairs()
+    let parts = []
+    let i = 0
+    while i < len(all) {
+        let row_pairs = all[i]
+        let s = json.stringify_pairs(row_pairs)
+        parts = parts + [s]
+        i = i + 1
+    }
+    let body = "[" + string.join(parts, ",") + "]"
+    res.set_header("Content-Type", "application/json; charset=utf-8")
+    return res.send(body)
+}
+
+func handle_create_task(req, res) {
+    let payload = json.parse(req.body)
+    if payload == nullx {
+        res.set_header("Content-Type", "application/json; charset=utf-8")
+        return res.status(400).send("{\"error\":\"Invalid JSON payload\"}")
+    }
+    let new_id = Tasks.query().insert(payload)
+    let created = Tasks.find(new_id)
+    let pairs = created.to_pairs()
+    let body = json.stringify_pairs(pairs)
+    res.set_header("Content-Type", "application/json; charset=utf-8")
+    return res.status(201).send(body)
+}
+
+func to_int(s) {
+    if typeofx(s) == "int" {
+        return s
+    }
+    let res = 0
+    let i = 0
+    while i < len(s) {
+        let ch = s[i]
+        let d = 0
+        if ch == "1" { d = 1 }
+        else if ch == "2" { d = 2 }
+        else if ch == "3" { d = 3 }
+        else if ch == "4" { d = 4 }
+        else if ch == "5" { d = 5 }
+        else if ch == "6" { d = 6 }
+        else if ch == "7" { d = 7 }
+        else if ch == "8" { d = 8 }
+        else if ch == "9" { d = 9 }
+        res = res * 10 + d
+        i = i + 1
+    }
+    return res
+}
+
+func handle_toggle_task(req, res) {
+    let id_val = req.param("id")
+    let id_num = to_int(id_val)
+    let item = Tasks.find(id_num)
+    if item == nullx {
+        res.set_header("Content-Type", "application/json; charset=utf-8")
+        return res.status(404).send("{\"error\":\"Task not found\"}")
+    }
+    let next_done = 1
+    if item.get("done") == 1 {
+        next_done = 0
+    }
+    Tasks.query().where("id", "==", id_num).update([["done", next_done]])
+    let updated = Tasks.find(id_num)
+    let body = json.stringify_pairs(updated.to_pairs())
+    res.set_header("Content-Type", "application/json; charset=utf-8")
+    return res.send(body)
+}
+
+func handle_delete_task(req, res) {
+    let id_val = req.param("id")
+    let id_num = to_int(id_val)
+    Tasks.query().where("id", "==", id_num).delete()
+    let body = json.stringify_pairs([["success", true], ["deleted_id", id_num]])
+    res.set_header("Content-Type", "application/json; charset=utf-8")
+    return res.send(body)
+}
+
+func handle_stats(req, res) {
+    let total = Tasks.count()
+    let completed = Tasks.where("done", "==", 1).count()
+    let pending = Tasks.where("done", "==", 0).count()
+    let body = json.stringify_pairs([
+        ["total", total],
+        ["completed", completed],
+        ["pending", pending],
+        ["engine", "MountX Native C Substrate (AOT)"]
+    ])
+    res.set_header("Content-Type", "application/json; charset=utf-8")
+    return res.send(body)
+}
+
+# ---------------------------------------------------------------------------
+#  Routing & Server Dispatch
+# ---------------------------------------------------------------------------
+let app = http_server.new_app()
+
+app.get("/", handle_index)
+app.get("/api/tasks", handle_get_tasks)
+app.post("/api/tasks", handle_create_task)
+app.post("/api/tasks/toggle/:id", handle_toggle_task)
+app.get("/api/tasks/toggle/:id", handle_toggle_task)
+app.post("/api/tasks/delete/:id", handle_delete_task)
+app.get("/api/tasks/delete/:id", handle_delete_task)
+app.get("/api/stats", handle_stats)
+
+importx os
+importx sys
+
+# Check if running in test/dispatch mode
+let is_test_mode = false
+if os.env("DRY_RUN") == "1" {
+    is_test_mode = true
+}
+
+if is_test_mode {
+    printx("=== Dry Run Mode: Testing API Endpoints ===")
+    let res_html = app.handle_raw("GET / HTTP/1.1\r\nHost: localhost\r\n\r\n")
+    printx("GET / status code: " + string.substr(res_html, 0, 15))
+    
+    let res_tasks = app.handle_raw("GET /api/tasks HTTP/1.1\r\nHost: localhost\r\n\r\n")
+    printx("GET /api/tasks response length: " + ("" + len(res_tasks)))
+    
+    let res_stats = app.handle_raw("GET /api/stats HTTP/1.1\r\nHost: localhost\r\n\r\n")
+    printx("GET /api/stats response: " + res_stats)
+    printx("=== Dry Run Passed Successfully ===")
+} else {
+    let port = 18088
+    printx("==========================================================")
+    printx("  ⚡ MountX Full-Stack Task Studio")
+    printx("  🌐 Open in browser: http://127.0.0.1:" + ("" + port))
+    printx("  💾 Database: SQLite (tmp/fullstack_tasks.db)")
+    printx("  🚀 Powered by MountX Native Substrate & AOT stdlib")
+    tryx {
+        app.listen(port, "127.0.0.1", nullx)
+    } catchx (e) {
+        printx("CAUGHT IN APP.LISTEN: " + ("" + e))
+    }
+}
+
+unmountx

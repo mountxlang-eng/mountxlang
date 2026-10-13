@@ -1,0 +1,17 @@
+# examples/03_math_and_algorithms/21_basic_math.mx
+# Basic math functions with the math module
+
+mountx
+importx math
+
+printx("abs(-42): " + math.abs(-42))
+printx("max(17, 42): " + math.max(17, 42))
+printx("min(17, 42): " + math.min(17, 42))
+printx("pow(2, 8): " + math.pow(2, 8))
+printx("pow(3, 4): " + math.pow(3, 4))
+printx("factorial(6): " + math.factorial(6))
+printx("clamp(15, 0, 10): " + math.clamp(15, 0, 10))
+printx("clamp(-5, 0, 10): " + math.clamp(-5, 0, 10))
+printx("clamp(7, 0, 10): " + math.clamp(7, 0, 10))
+
+unmountx

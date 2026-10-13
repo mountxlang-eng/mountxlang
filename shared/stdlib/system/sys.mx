@@ -1,0 +1,69 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# sys.mx - command line & process (system/)
+# Needs the sys_args / sys_exit natives.
+#   python3 main.py prog.mx --name Ada -v data.txt
+#   -> sys.args() == ["--name", "Ada", "-v", "data.txt"]
+
+importx string
+
+func args() {
+    return sys_args()
+}
+
+# exits the process immediately; NOT catchable by tryx/catchx
+func exit(code) {
+    sys_exit(code)
+    return nullx
+}
+
+func version() {
+    return "mountx stdlib 1.0"
+}
+
+# ["--name", "Ada", "-v", "x.txt"] -> [named_pairs, flags, positional]
+func parse_args(argv) {
+    let named = []
+    let flags = []
+    let positional = []
+    let i = 0
+    while i < len(argv) {
+        let a = argv[i]
+        if string.starts_with(a, "--") {
+            let body = string.substr(a, 2, len(a))
+            let eq = string.index_of(body, "=")
+            if eq >= 0 {
+                named = named + [[string.substr(body, 0, eq), string.substr(body, eq + 1, len(body))]]
+            } else {
+                flags = flags + [body]
+            }
+        } else if string.starts_with(a, "-") && a != "-" {
+            flags = flags + [string.substr(a, 1, len(a))]
+        } else {
+            positional = positional + [a]
+        }
+        i = i + 1
+    }
+    return [named, flags, positional]
+}
+
+func arg_named(parsed, name) {
+    for p in parsed[0] {
+        if p[0] == name {
+            return p[1]
+        }
+    }
+    return nullx
+}
+
+func has_flag(parsed, flag) {
+    for f in parsed[1] {
+        if f == flag {
+            return true
+        }
+    }
+    return false
+}
+
+func positional_args(parsed) {
+    return parsed[2]
+}

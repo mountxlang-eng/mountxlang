@@ -1,0 +1,143 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# datetime.mx - date and time manipulation and formatting (system/)
+# Usage:
+#   importx datetime
+#   let dt = datetime.now()
+#   dt.iso_format()       # "2026-10-08T01:13:31"
+#   dt.format("YYYY-MM-DD") # "2026-10-08"
+
+importx string
+
+func is_leap_year(y) {
+    if y % 400 == 0 { return true }
+    if y % 100 == 0 { return false }
+    return y % 4 == 0
+}
+
+func days_in_month(y, m) {
+    if m == 2 {
+        if is_leap_year(y) { return 29 }
+        return 28
+    }
+    if m == 4 || m == 6 || m == 9 || m == 11 {
+        return 30
+    }
+    return 31
+}
+
+func _pad2(n) {
+    if n < 10 {
+        return "0" + n
+    }
+    return "" + n
+}
+
+classx DateTime {
+    let year = 1970
+    let month = 1
+    let day = 1
+    let hour = 0
+    let minute = 0
+    let second = 0
+    let millisecond = 0
+
+    func init(y, m, d, h, mi, s, ms) {
+        this.year = y
+        this.month = m
+        this.day = d
+        this.hour = h
+        this.minute = mi
+        this.second = s
+        if ms == nullx {
+            this.millisecond = 0
+        } else {
+            this.millisecond = ms
+        }
+    }
+
+    func to_timestamp() {
+        # Days from 1970-01-01
+        let y = 1970
+        let days = 0
+        while y < this.year {
+            let add_days = 365
+            if is_leap_year(y) {
+                add_days = 366
+            }
+            days = days + add_days
+            y = y + 1
+        }
+        let m = 1
+        while m < this.month {
+            days = days + days_in_month(this.year, m)
+            m = m + 1
+        }
+        days = days + (this.day - 1)
+        let total_seconds = (days * 86400) + (this.hour * 3600) + (this.minute * 60) + this.second
+        return (total_seconds * 1000) + this.millisecond
+    }
+
+    func iso_format() {
+        return "" + this.year + "-" + _pad2(this.month) + "-" + _pad2(this.day) + "T" +
+               _pad2(this.hour) + ":" + _pad2(this.minute) + ":" + _pad2(this.second)
+    }
+
+    func format(fmt) {
+        let out = fmt
+        out = string.replace(out, "YYYY", "" + this.year)
+        out = string.replace(out, "MM", _pad2(this.month))
+        out = string.replace(out, "DD", _pad2(this.day))
+        out = string.replace(out, "HH", _pad2(this.hour))
+        out = string.replace(out, "mm", _pad2(this.minute))
+        out = string.replace(out, "ss", _pad2(this.second))
+        return out
+    }
+}
+
+func from_timestamp(ms) {
+    let total_sec = idiv(ms, 1000)
+    let rem_ms = ms % 1000
+
+    let sec = total_sec % 60
+    let total_min = idiv(total_sec, 60)
+    let min = total_min % 60
+    let total_hours = idiv(total_min, 60)
+    let hour = total_hours % 24
+    let days = idiv(total_hours, 24)
+
+    let y = 1970
+    while true {
+        let diy = 365
+        if is_leap_year(y) {
+            diy = 366
+        }
+        if days >= diy {
+            days = days - diy
+            y = y + 1
+        } else {
+            break
+        }
+    }
+
+    let m = 1
+    while true {
+        let dim = days_in_month(y, m)
+        if days >= dim {
+            days = days - dim
+            m = m + 1
+        } else {
+            break
+        }
+    }
+    let d = days + 1
+
+    return newx DateTime(y, m, d, hour, min, sec, rem_ms)
+}
+
+func now() {
+    return from_timestamp(time_now_ms())
+}
+
+func create(y, m, d, h, mi, s) {
+    return newx DateTime(y, m, d, h, mi, s, 0)
+}

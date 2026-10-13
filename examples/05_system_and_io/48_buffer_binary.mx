@@ -1,0 +1,22 @@
+# examples/05_system_and_io/48_buffer_binary.mx
+# Binary buffer creation, byte inspection, and hex conversion
+
+mountx
+importx buffer
+
+# Create a buffer from an ASCII string
+let buf = buffer.from_string("MountX")
+printx("Buffer size: " + buf.size() + " bytes")
+printx("First byte (M): " + buf.get(0))
+printx("Hex encoding: " + buf.to_hex())
+
+# Modify a byte in-place
+buf.set(5, 49) # Change 'X' (88) to '1' (49)
+printx("Modified string: " + buf.to_string())
+
+# Decode from hex string
+let hex_data = "4d6f756e74582032303236"
+let decoded_buf = buffer.from_hex(hex_data)
+printx("Decoded from hex '" + hex_data + "': " + decoded_buf.to_string())
+
+unmountx

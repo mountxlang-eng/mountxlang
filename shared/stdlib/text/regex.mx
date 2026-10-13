@@ -1,0 +1,281 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# regex.mx - regular expression pattern matcher (text/)
+# Supports:
+#   .    any character
+#   ^    start of string
+#   $    end of string
+#   *    zero or more of previous element
+#   +    one or more of previous element
+#   ?    zero or one of previous element
+#   [abc] character class / range [a-z], [0-9]
+#   [^abc] negated character class
+#
+# Usage:
+#   importx regex
+#   regex.is_match("^hello", "hello world") # true
+#   regex.is_match("a+b", "aaab")           # true
+#   regex.is_match("[0-9]+", "12345")       # true
+
+importx string
+
+# Compiles pattern into token structures:
+# Each token: [type, char_val, quantifier]
+# type: "CHAR", "DOT", "CLASS", "NEG_CLASS"
+# quantifier: "ONE", "STAR", "PLUS", "OPT"
+func _compile_pattern(pat) {
+    let tokens = []
+    let i = 0
+    let n = len(pat)
+
+    while i < n {
+        let ch = pat[i]
+        let tok_type = "CHAR"
+        let tok_val = ch
+
+        if ch == "." {
+            tok_type = "DOT"
+            tok_val = "."
+        } else if ch == "[" {
+            let close_bracket = string.index_of(string.substr(pat, i + 1, n), "]")
+            if close_bracket >= 0 {
+                let inside = string.substr(pat, i + 1, i + 1 + close_bracket)
+                i = i + 1 + close_bracket
+                if string.starts_with(inside, "^") {
+                    tok_type = "NEG_CLASS"
+                    tok_val = string.substr(inside, 1, len(inside))
+                } else {
+                    tok_type = "CLASS"
+                    tok_val = inside
+                }
+            }
+        }
+
+        # Check for quantifier in next char
+        let quant = "ONE"
+        if i + 1 < n {
+            let next_ch = pat[i + 1]
+            if next_ch == "*" {
+                quant = "STAR"
+                i = i + 1
+            } else if next_ch == "+" {
+                quant = "PLUS"
+                i = i + 1
+            } else if next_ch == "?" {
+                quant = "OPT"
+                i = i + 1
+            }
+        }
+
+        tokens = tokens + [[tok_type, tok_val, quant]]
+        i = i + 1
+    }
+    return tokens
+}
+
+func _match_one_char(tok, ch) {
+    let tok_type = tok[0]
+    let tok_val = tok[1]
+
+    if tok_type == "DOT" {
+        return true
+    }
+    if tok_type == "CHAR" {
+        return tok_val == ch
+    }
+    if tok_type == "CLASS" || tok_type == "NEG_CLASS" {
+        let matched = false
+        let j = 0
+        let len_val = len(tok_val)
+        while j < len_val {
+            if j + 2 < len_val && tok_val[j + 1] == "-" {
+                let start_ch = tok_val[j]
+                let end_ch = tok_val[j + 2]
+                if ch >= start_ch && ch <= end_ch {
+                    matched = true
+                    break
+                }
+                j = j + 3
+            } else {
+                if tok_val[j] == ch {
+                    matched = true
+                    break
+                }
+                j = j + 1
+            }
+        }
+        if tok_type == "NEG_CLASS" {
+            return !matched
+        }
+        return matched
+    }
+    return false
+}
+
+func _match_tokens(tokens, t_idx, text, s_idx) {
+    if t_idx >= len(tokens) {
+        return true
+    }
+
+    let tok = tokens[t_idx]
+    let quant = tok[2]
+
+    if quant == "ONE" {
+        if s_idx >= len(text) {
+            return false
+        }
+        if _match_one_char(tok, text[s_idx]) {
+            return _match_tokens(tokens, t_idx + 1, text, s_idx + 1)
+        }
+        return false
+    }
+
+    if quant == "OPT" {
+        # Try matching 1 char
+        if s_idx < len(text) && _match_one_char(tok, text[s_idx]) {
+            if _match_tokens(tokens, t_idx + 1, text, s_idx + 1) {
+                return true
+            }
+        }
+        # Or match 0 chars
+        return _match_tokens(tokens, t_idx + 1, text, s_idx)
+    }
+
+    if quant == "STAR" {
+        # Greedily match 0 or more
+        let cur = s_idx
+        while cur < len(text) && _match_one_char(tok, text[cur]) {
+            cur = cur + 1
+        }
+        # Backtrack
+        while cur >= s_idx {
+            if _match_tokens(tokens, t_idx + 1, text, cur) {
+                return true
+            }
+            cur = cur - 1
+        }
+        return false
+    }
+
+    if quant == "PLUS" {
+        if s_idx >= len(text) || !_match_one_char(tok, text[s_idx]) {
+            return false
+        }
+        let cur = s_idx + 1
+        while cur < len(text) && _match_one_char(tok, text[cur]) {
+            cur = cur + 1
+        }
+        while cur > s_idx {
+            if _match_tokens(tokens, t_idx + 1, text, cur) {
+                return true
+            }
+            cur = cur - 1
+        }
+        return false
+    }
+
+    return false
+}
+
+func is_match(pat, text) {
+    let p = pat
+    let anchor_start = false
+    let anchor_end = false
+
+    if string.starts_with(p, "^") {
+        anchor_start = true
+        p = string.substr(p, 1, len(p))
+    }
+    if string.ends_with(p, "$") {
+        anchor_end = true
+        p = string.substr(p, 0, len(p) - 1)
+    }
+
+    let tokens = _compile_pattern(p)
+
+    if anchor_start {
+        if anchor_end {
+            # Must match exact whole string
+            let i = 0
+            while i <= len(text) {
+                if _match_tokens(tokens, 0, text, 0) {
+                    # verify text fully consumed
+                    let len_matched = _match_length(tokens, text, 0)
+                    if len_matched == len(text) {
+                        return true
+                    }
+                }
+                return false
+            }
+        }
+        return _match_tokens(tokens, 0, text, 0)
+    }
+
+    let s = 0
+    while s <= len(text) {
+        if _match_tokens(tokens, 0, text, s) {
+            if anchor_end {
+                let len_m = _match_length(tokens, text, s)
+                if s + len_m == len(text) {
+                    return true
+                }
+            } else {
+                return true
+            }
+        }
+        s = s + 1
+    }
+    return false
+}
+
+func _match_length(tokens, text, s_idx) {
+    let s = s_idx
+    let t = 0
+    while t < len(tokens) && s < len(text) {
+        let tok = tokens[t]
+        let quant = tok[2]
+        if quant == "ONE" {
+            if _match_one_char(tok, text[s]) {
+                s = s + 1
+            } else {
+                return -1
+            }
+        } else if quant == "STAR" || quant == "PLUS" {
+            while s < len(text) && _match_one_char(tok, text[s]) {
+                s = s + 1
+            }
+        } else if quant == "OPT" {
+            if s < len(text) && _match_one_char(tok, text[s]) {
+                s = s + 1
+            }
+        }
+        t = t + 1
+    }
+    return s - s_idx
+}
+
+func match_find(pat, text) {
+    let tokens = _compile_pattern(pat)
+    let s = 0
+    while s < len(text) {
+        if _match_tokens(tokens, 0, text, s) {
+            let m_len = _match_length(tokens, text, s)
+            if m_len >= 0 {
+                return string.substr(text, s, s + m_len)
+            }
+        }
+        s = s + 1
+    }
+    return nullx
+}
+
+func find(pat, text) {
+    return match_find(pat, text)
+}
+
+func replace(pat, repl, text) {
+    let found = match_find(pat, text)
+    if found == nullx {
+        return text
+    }
+    return string.replace(text, found, repl)
+}

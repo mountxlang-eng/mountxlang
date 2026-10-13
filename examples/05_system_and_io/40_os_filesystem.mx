@@ -1,0 +1,19 @@
+# examples/05_system_and_io/40_os_filesystem.mx
+# Path manipulation and filesystem operations with os module
+
+mountx
+importx os
+
+printx("Path separator: '" + os.sep() + "'")
+printx("Current working directory: " + os.cwd())
+
+let sample_path = os.path_join(["home", "user", "documents", "project.mx"])
+printx("Joined path: " + sample_path)
+printx("Path basename: " + os.path_basename(sample_path))
+printx("Path parent: " + os.path_parent(sample_path))
+printx("Path extension: " + os.path_ext(sample_path))
+
+let no_ext = "archive_tar"
+printx("Extension of '" + no_ext + "': '" + os.path_ext(no_ext) + "'")
+
+unmountx

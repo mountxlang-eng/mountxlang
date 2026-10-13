@@ -1,0 +1,50 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# type.mx - type inspection & conversion (core/)
+# Built on typeofx + the language's truthiness rules. No imports.
+
+func is_null(v)      { return typeofx(v) == "null" }
+func is_bool(v)      { return typeofx(v) == "bool" }
+func is_int(v)       { return typeofx(v) == "int" }
+func is_float(v)     { return typeofx(v) == "float" }
+func is_num(v)       { let t = typeofx(v)  return t == "int" || t == "float" }
+func is_string(v)    { return typeofx(v) == "string" }
+func is_array(v)     { return typeofx(v) == "array" }
+func is_function(v)  { return typeofx(v) == "function" }
+func is_module(v)    { return typeofx(v) == "module" }
+
+# instances report their CLASS name, so: is_instance(p, "Point")
+func is_instance(v, class_name) {
+    return typeofx(v) == class_name
+}
+
+# replicates interpreter truthiness: null/false/0/""/[] are falsy
+func to_bool(v) {
+    if v == nullx { return false }
+    if v == false { return false }
+    if v == 0     { return false }
+    if v == ""    { return false }
+    if v == []    { return false }
+    return true
+}
+
+# arrays are references; this makes a fully independent copy
+func deep_copy(v) {
+    if typeofx(v) == "array" {
+        let out = []
+        for x in v {
+            out = out + [deep_copy(x)]
+        }
+        return out
+    }
+    return v
+}
+
+# natural "empty" value for each type name
+func default_value(type_name) {
+    if type_name == "bool"   { return false }
+    if type_name == "int"    { return 0 }
+    if type_name == "float"  { return 0 }
+    if type_name == "string" { return "" }
+    if type_name == "array"  { return [] }
+    return nullx
+}

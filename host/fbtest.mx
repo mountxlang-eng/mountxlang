@@ -1,0 +1,684 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# fbtest.mx - MountX end-to-end regression suite.
+# Run: python3 main.py fbtest.mx   (must end "OK - N check(s) passed", no FAILs)
+# Expected: 343 checks — update when adding checks
+mountx
+importx type
+importx error
+importx iter
+importx assert
+importx random
+importx dict
+importx map
+importx set
+importx hashtable
+importx collections
+importx math
+importx mathfull
+importx string
+importx json
+importx arrayfull
+importx io
+importx sys
+importx net
+importx os
+importx time
+importx db
+importx args
+importx enum
+importx exception
+importx tuple
+importx graph
+importx regex
+importx datetime
+importx url
+importx process
+importx buffer
+importx socket
+importx http_server
+importx orm
+importx stdlib
+
+# ---- callbacks (top-level, hoisted; names chosen to clash with nothing) ----
+func cb_double(x) { return x * 2 }
+func cb_add(a, b) { return a + b }
+func cb_even(x) { return x % 2 == 0 }
+func cb_gt4(x) { return x > 4 }
+func cb_lt3(x) { return x < 3 }
+func cb_dup(x) { return [x, x] }
+func cb_asc(a, b) { return a - b }
+func cb_dbl(v) { return v * 2 }
+func cb_inc(v) { return v + 1 }
+func cb_kv_ge4(k, v) { return v >= 4 }
+func cb_ok() { return 7 }
+func cb_bad() { throwx "boom" }
+func cb_noop() { return true }
+func cb_throw_x() { throwx "xyz" }
+func cb_idiv_zero() { return idiv(1, 0) }
+func cb_query_closed() { return db.query(db_conn, "SELECT 1") }
+
+# Scratch path that works on any machine, without writing into the repo.
+# Same $TMPDIR pattern as examples/tour.mx - reused, not deleted (there is
+# no delete primitive in the io/os modules yet).
+func tmp_path(name) {
+    let root = os.env_or("TMPDIR", "/tmp")
+    if root == "" { root = "/tmp" }
+    while len(root) > 1 {
+        if root[len(root) - 1] != "/" { break }
+        root = string.substr(root, 0, len(root) - 1)
+    }
+    return root + os.sep() + name
+}
+
+classx Cat {
+    let legs = 4
+}
+let cat = newx Cat()      # ← ADD THIS LINE
+
+let T = newx assert.Tracker()
+
+printx("== math/mathfull ==")
+T.check_eq(math.factorial(6), 720, "factorial")
+T.check_eq(math.pow(2, 10), 1024, "pow")
+T.check_eq(math.clamp(15, 1, 10), 10, "clamp")
+T.check_eq(math.abs(-5), 5, "abs")
+T.check_eq(mathfull.idiv(7, 2), 3, "idiv pos")
+T.check_eq(mathfull.idiv(-7, 2), -3, "idiv truncates toward zero")
+T.check_eq(mathfull.trunc(3.9), 3, "trunc pos")
+T.check_eq(mathfull.trunc(-3.9), -3, "trunc neg")
+T.check_eq(mathfull.floor(-3.1), -4, "floor neg")
+T.check_eq(mathfull.ceil(3.1), 4, "ceil")
+T.check_eq(mathfull.round(2.5), 3, "round .5 up")
+T.check_eq(mathfull.round(-2.5), -3, "round -.5 away")
+T.check_eq(mathfull.ipow(2, 10), 1024, "ipow")
+T.check_eq(mathfull.gcd(12, 18), 6, "gcd")
+T.check_eq(mathfull.lcm(4, 6), 12, "lcm")
+T.check(mathfull.is_prime(97), "is_prime yes")
+T.check(!mathfull.is_prime(1), "is_prime no")
+T.check_eq(mathfull.primes_below(20), [2, 3, 5, 7, 11, 13, 17, 19], "primes_below")
+T.check(math.abs(mathfull.sqrt(144) - 12) < 0.000001, "sqrt")
+T.check_eq(mathfull.digits(3407), [3, 4, 0, 7], "digits")
+T.check_eq(mathfull.undigits([3, 4, 0, 7]), 3407, "undigits")
+T.check_eq(mathfull.to_base(255, 16), "ff", "to_base hex")
+T.check_eq(mathfull.to_base(10, 2), "1010", "to_base bin")
+T.check_eq(mathfull.from_base("ff", 16), 255, "from_base hex")
+T.check_eq(mathfull.from_base("-z", 36), -35, "from_base neg")
+
+printx("== string ==")
+T.check_eq(string.split("a,b,c", ","), ["a", "b", "c"], "split")
+T.check_eq(string.split("xy", ""), ["x", "y"], "split chars")
+T.check_eq(string.join(["1", "2", "3"], "+"), "1+2+3", "join")
+T.check_eq(string.index_of("hello world", "world"), 6, "index_of")
+T.check_eq(string.last_index_of("aXbXc", "X"), 3, "last_index_of")
+T.check(string.contains("mountx", "unt"), "contains")
+T.check(string.starts_with("mountx", "mou"), "starts_with")
+T.check(string.ends_with("mountx", "ntx"), "ends_with")
+T.check_eq(string.substr("abcdef", 2, 4), "cd", "substr")
+T.check_eq(string.trim("  hi  "), "hi", "trim")
+T.check_eq(string.replace_all("a-b-a", "-", "+"), "a+b+a", "replace_all")
+T.check_eq(string.repeat("ab", 3), "ababab", "repeat")
+T.check_eq(string.reverse("abc"), "cba", "reverse")
+T.check_eq(string.upper("aBc1"), "ABC1", "upper")
+T.check_eq(string.lower("AbC1"), "abc1", "lower")
+T.check_eq(string.pad_start("7", 3, "0"), "007", "pad_start")
+T.check_eq(string.pad_end("7", 3, "*"), "7**", "pad_end")
+T.check_eq(string.count("banana", "an"), 2, "count")
+T.check_eq(string.tonum("42"), 42, "tonum int")
+T.check_eq(string.tonum(" -1.5 "), -1.5, "tonum float")
+T.check_eq(string.tonum("abc"), nullx, "tonum bad")
+
+printx("== arrayfull ==")
+T.check_eq(arrayfull.map([1, 2, 3], cb_double), [2, 4, 6], "map")
+T.check_eq(arrayfull.filter([1, 2, 3, 4, 5, 6], cb_even), [2, 4, 6], "filter")
+T.check_eq(arrayfull.reduce([1, 2, 3, 4], cb_add, 0), 10, "reduce")
+T.check(arrayfull.every([2, 4], cb_even), "every")
+T.check(arrayfull.some([1, 3, 4], cb_even), "some")
+T.check_eq(arrayfull.find([1, 5, 9], cb_gt4), 5, "find")
+T.check_eq(arrayfull.find_index([1, 5, 9], cb_gt4), 1, "find_index")
+T.check_eq(arrayfull.arr_index_of([7, 8, 9], 8), 1, "arr_index_of")
+T.check(!arrayfull.includes([7, 8, 9], 5), "!includes")
+T.check_eq(arrayfull.min_of([3, 1, 2]), 1, "min_of")
+T.check_eq(arrayfull.max_of([3, 1, 2]), 3, "max_of")
+T.check_eq(arrayfull.reversed([1, 2, 3]), [3, 2, 1], "reversed")
+T.check_eq(arrayfull.unique([1, 2, 1, 3, 2]), [1, 2, 3], "unique")
+T.check_eq(arrayfull.flatten([1, [2, 3], [4]]), [1, 2, 3, 4], "flatten")
+T.check_eq(arrayfull.partition([1, 2, 3, 4, 5], cb_even), [[2, 4], [1, 3, 5]], "partition")
+T.check_eq(arrayfull.sort_by([3, 1, 2], cb_asc), [1, 2, 3], "sort_by")
+T.check_eq(arrayfull.take([1, 2, 3, 4], 2), [1, 2], "take")
+T.check_eq(arrayfull.drop([1, 2, 3, 4], 2), [3, 4], "drop")
+T.check_eq(arrayfull.insert_at([1, 3], 1, 2), [1, 2, 3], "insert_at")
+T.check_eq(arrayfull.remove_at([1, 2, 3], 1), [1, 3], "remove_at")
+let a3 = [1, 2, 3]
+arrayfull.swap(a3, 0, 2)
+T.check_eq(a3, [3, 2, 1], "swap in place")
+let orig = [1, 2]
+let cp = arrayfull.copy(orig)
+cp[0] = 99
+T.check_eq(orig[0], 1, "copy independent")
+T.check_eq(arrayfull.pop([1, 2, 3]), [[1, 2], 3], "pop shape")
+T.check_eq(arrayfull.shift([1, 2, 3]), [[2, 3], 1], "shift shape")
+
+printx("== iter ==")
+T.check_eq(iter.range(4), [0, 1, 2, 3], "range")
+T.check_eq(iter.range_step(10, 0, -3), [10, 7, 4, 1], "range_step neg")
+T.check_eq(iter.enumerate(["a", "b"]), [[0, "a"], [1, "b"]], "enumerate")
+T.check_eq(iter.zip([1, 2, 3], ["x", "y"]), [[1, "x"], [2, "y"]], "zip short")
+T.check_eq(iter.windows([1, 2, 3, 4], 2), [[1, 2], [2, 3], [3, 4]], "windows")
+T.check_eq(iter.chunks([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]], "chunks")
+T.check_eq(iter.scan([1, 2, 3], cb_add, 10), [11, 13, 16], "scan")
+T.check_eq(iter.take_while([1, 2, 3, 1], cb_lt3), [1, 2], "take_while")
+T.check_eq(iter.drop_while([1, 2, 3, 1], cb_lt3), [3, 1], "drop_while")
+T.check_eq(iter.flat_map([1, 2, 3], cb_dup), [1, 1, 2, 2, 3, 3], "flat_map")
+T.check_eq(iter.iterate(3, cb_double), [0, 2, 4], "iterate")
+
+printx("== type ==")
+T.check(type.is_int(5), "is_int")
+T.check(type.is_float(5.5), "is_float")
+T.check(type.is_num(2.5), "is_num")
+T.check(!type.is_num("5"), "!is_num str")
+T.check(type.is_string("x"), "is_string")
+T.check(type.is_array([]), "is_array")
+T.check(type.is_function(cb_double), "is_function")
+T.check(type.is_instance(cat, "Cat"), "is_instance")
+T.check(type.is_module(math), "is_module")
+T.check_eq(type.to_bool(""), false, "to_bool empty str")
+T.check_eq(type.to_bool("0"), true, "to_bool string zero")
+T.check_eq(type.to_bool([]), false, "to_bool empty array")
+T.check_eq(type.to_bool(3), true, "to_bool num")
+let nested = [[1]]
+let dc = type.deep_copy(nested)
+dc[0][0] = 9
+T.check_eq(nested[0][0], 1, "deep_copy independent")
+
+printx("== error ==")
+let r_ok = error.attempt(cb_ok)
+T.check_eq(r_ok[0], "ok", "attempt ok tag")
+T.check_eq(error.result_value(r_ok), 7, "attempt ok value")
+let r_bad = error.attempt(cb_bad)
+T.check_eq(r_bad[0], "err", "attempt err tag")
+T.check_eq(error.result_error(r_bad), "boom", "attempt err value")
+let eobj = error.make_error("io", "no file")
+T.check(type.is_instance(eobj, "MxError"), "MxError type")
+T.check_eq(error.error_code(eobj), "io", "error_code")
+T.check_eq(eobj.to_string(), "[io] no file", "to_string")
+tryx {
+    error.throw_error("db", "down")
+} catchx(ex) {
+    T.check(error.is_error(ex), "throw_error is MxError")
+    T.check_eq(error.error_code(ex), "db", "throw_error code")
+}
+T.check_eq(error.retry(3, cb_bad)[0], "err", "retry exhausted")
+
+printx("== assert ==")
+T.check_eq(assert.assert_eq(2, 2, "m"), true, "assert_eq pass")
+T.check_eq(assert.assert_true(1 < 2, "m"), true, "assert_true pass")
+T.check_eq(assert.assert_throws(cb_throw_x, "m"), "xyz", "assert_throws")
+T.check_eq(assert.assert_no_throw(cb_noop, "m"), true, "assert_no_throw")
+
+printx("== random ==")
+let r1 = newx Rand(7)
+let r2 = newx Rand(7)
+let seq1 = [r1.below(1000), r1.below(1000), r1.below(1000)]
+let seq2 = [r2.below(1000), r2.below(1000), r2.below(1000)]
+T.check_eq(seq1, seq2, "same seed same sequence")
+let sh = r1.shuffle([1, 2, 3, 4, 5])
+T.check_eq(arrayfull.sort_by(sh, cb_asc), [1, 2, 3, 4, 5], "shuffle keeps elements")
+T.check_eq(r1.choice([9]), 9, "choice single")
+T.check(r1.chance(100), "chance 100")
+T.check(rand_below(10) < 10, "shared rng bound")
+
+printx("== data: dict/map/pairs/set/hashtable ==")
+let dd = newx Dict()
+dd.set("a", 1)
+dd.set("b", 2)
+dd.set("a", 10)
+T.check_eq(dd.get("a"), 10, "dict update")
+T.check_eq(dd.size(), 2, "dict size")
+T.check(dd.has("b"), "dict has")
+T.check_eq(dd.get("zz"), nullx, "dict missing")
+T.check(dd.remove("a"), "dict remove")
+T.check(!dd.has("a"), "dict !has after remove")
+T.check_eq(dd.keys, ["b"], "dict keys field (no parens)")
+dd.clear()
+T.check_eq(dd.size(), 0, "dict clear")
+
+let m = newx Map()
+m.set("a", 1)
+m.set("b", 2)
+T.check_eq(m.set_if_absent("a", 99), 1, "set_if_absent existing")
+T.check_eq(m.set_if_absent("c", 3), 3, "set_if_absent new")
+T.check_eq(m.size(), 3, "map size")
+T.check_eq(m.update("b", cb_inc), 3, "update returns new")
+T.check_eq(m.get("b"), 3, "update stored")
+m.merge_pairs([["d", 4]])
+T.check_eq(m.size(), 4, "merge_pairs")
+m.map_values(cb_dbl)
+T.check_eq(m.get("d"), 8, "map_values")
+m.filter_entries(cb_kv_ge4)
+T.check_eq(m.size(), 3, "filter_entries")
+T.check_eq(m.get_keys(), ["b", "c", "d"], "get_keys")
+T.check_eq(m.get_or_default("zz", -1), -1, "get_or_default")
+T.check_eq(json.stringify(m), "{\"b\":6,\"c\":6,\"d\":8}", "stringify Map")
+
+let ps = [["a", 1], ["b", 2]]
+T.check_eq(map.pairs_get(ps, "b"), 2, "pairs_get")
+let ps2 = map.pairs_set(ps, "b", 9)
+T.check_eq(map.pairs_get(ps2, "b"), 9, "pairs_set update")
+let ps3 = map.pairs_set(ps2, "c", 3)
+T.check_eq(map.pairs_keys(ps3), ["a", "b", "c"], "pairs_keys")
+T.check_eq(map.pairs_remove(ps3, "a"), [["b", 9], ["c", 3]], "pairs_remove")
+T.check_eq(map.pairs_values(ps2), [1, 9], "pairs_values")
+T.check_eq(map.pairs_merge([["a", 1]], [["a", 2], ["b", 3]]), [["a", 2], ["b", 3]], "pairs_merge")
+
+let s1 = newx Set()
+s1.add_all([1, 2, 3])
+s1.add(3)
+T.check_eq(s1.size(), 3, "set dedup")
+let s2 = newx Set()
+s2.add_all([2, 3, 4])
+T.check_eq(s1.union(s2).to_array(), [1, 2, 3, 4], "union")
+T.check_eq(s1.intersection(s2).to_array(), [2, 3], "intersection")
+T.check_eq(s1.difference(s2).to_array(), [1], "difference")
+let s3 = newx Set()
+s3.add_all([2, 3])
+T.check(s3.is_subset(s1), "is_subset yes")
+T.check(!s2.is_subset(s1), "is_subset no")
+s1.remove(2)
+T.check_eq(s1.to_array(), [1, 3], "set remove")
+
+let h = newx HashTable()
+for i in iter.range(20) {
+    h.put("k" + i, i)
+}
+T.check_eq(h.size(), 20, "ht size after rehash")
+T.check_eq(h.get("k0"), 0, "ht get first")
+T.check_eq(h.get("k19"), 19, "ht get last")
+T.check_eq(h.get("k7"), 7, "ht get mid")
+h.put("k7", 777)
+T.check_eq(h.get("k7"), 777, "ht update")
+T.check_eq(h.size(), 20, "ht update no grow")
+T.check(h.remove("k0"), "ht remove")
+T.check(!h.has("k0"), "ht !has")
+T.check(h.has("k19"), "ht has after rehash")
+T.check_eq(h.size(), 19, "ht size after remove")
+T.check_eq(h.get_or_default("nope", -1), -1, "ht get_or_default")
+
+printx("== bst ==")
+let t = newx BST()
+for k in [50, 30, 70, 20, 40, 60, 80, 35, 45, 65] {
+    t.insert(k, k * 10)
+}
+T.check_eq(t.keys(), [20, 30, 35, 40, 45, 50, 60, 65, 70, 80], "bst inorder")
+T.check_eq(t.get(45), 450, "bst get")
+T.check(t.has(45), "bst has")
+T.check(!t.has(99), "bst !has")
+T.check(t.remove(50), "bst remove two-children root")
+T.check_eq(t.keys(), [20, 30, 35, 40, 45, 60, 65, 70, 80], "bst keys after 50")
+T.check(t.remove(20), "bst remove leaf")
+T.check(t.remove(30), "bst remove one-child")
+T.check_eq(t.keys(), [35, 40, 45, 60, 65, 70, 80], "bst keys after")
+T.check_eq(t.size(), 7, "bst size")
+T.check_eq(t.min_key(), 35, "bst min")
+T.check_eq(t.max_key(), 80, "bst max")
+T.check_eq(t.height(), 3, "bst height")
+T.check(!t.remove(999), "bst remove absent")
+T.check_eq(t.entries()[0], [35, 350], "bst entries")
+
+printx("== stack ==")
+let s = newx Stack()
+s.push(1)
+s.push(2)
+s.push(3)
+T.check_eq(s.pop(), 3, "stack lifo")
+T.check_eq(s.peek(), 2, "stack peek")
+T.check_eq(s.size(), 2, "stack size")
+T.check_eq(s.pop(), 2, "stack pop 2")
+T.check_eq(s.pop(), 1, "stack pop 1")
+T.check_eq(s.pop(), nullx, "stack empty pop")
+T.check(s.is_empty(), "stack is_empty")
+
+printx("== queue ==")
+let q = newx Queue()
+for x in iter.range(70) {
+    q.enqueue(x)
+}
+let last_dq = -1
+for i in iter.range(65) {
+    last_dq = q.dequeue()
+}
+T.check_eq(last_dq, 64, "queue fifo 65th")
+T.check_eq(q.size(), 5, "queue size after compaction")
+T.check_eq(q.peek(), 65, "queue peek")
+T.check_eq(q.dequeue(), 65, "queue dequeue")
+
+printx("== linkedlist ==")
+let ll = newx LinkedList()
+ll.add_back(1)
+ll.add_back(2)
+ll.add_back(3)
+ll.add_front(0)
+T.check_eq(ll.to_array(), [0, 1, 2, 3], "ll build")
+T.check(ll.remove_first(2), "ll remove mid")
+T.check_eq(ll.to_array(), [0, 1, 3], "ll after remove")
+ll.reverse()
+T.check_eq(ll.to_array(), [3, 1, 0], "ll reverse")
+T.check_eq(ll.peek_front(), 3, "ll peek_front")
+T.check_eq(ll.peek_back(), 0, "ll peek_back")
+T.check(ll.contains(1), "ll contains")
+T.check_eq(ll.remove_front(), 3, "ll remove_front")
+T.check_eq(ll.to_array(), [1, 0], "ll final")
+
+printx("== json ==")
+let src = "{\"name\":\"mountx\",\"version\":2,\"tags\":[\"a\",\"b\"],\"ok\":true,\"parent\":null,\"pi\":1.5}"
+let v = json.parse(src)
+T.check_eq(map.pairs_get(v, "name"), "mountx", "json str value")
+T.check_eq(map.pairs_get(v, "version"), 2, "json int value")
+T.check_eq(map.pairs_get(v, "tags"), ["a", "b"], "json array value")
+T.check_eq(map.pairs_get(v, "ok"), true, "json bool value")
+T.check_eq(map.pairs_get(v, "parent"), nullx, "json null value")
+T.check_eq(map.pairs_get(v, "pi"), 1.5, "json float value")
+T.check_eq(json.stringify_pairs(v), src, "json object round trip")
+T.check_eq(json.stringify(json.parse("[1,2,[3],null]")), "[1,2,[3],null]", "json array round trip")
+let jm = newx Map()
+jm.set("a", 1)
+jm.set("b", [true, nullx])
+T.check_eq(json.stringify(jm), "{\"a\":1,\"b\":[true,null]}", "stringify Map direct")
+T.check_eq(json.try_parse("{oops")[0], "err", "try_parse bad")
+
+printx("== time ==")
+T.check(type.is_int(time.now_ms()), "now_ms int")
+T.check_eq(time.format_duration(3723456), "1h 2m 3.456s", "format_duration")
+T.check_eq(time.date_parts(0), [1970, 1, 1, 0, 0, 0, 0], "epoch parts")
+T.check_eq(time.date_parts(1736208000000), [2025, 1, 7, 0, 0, 0, 0], "known date parts")
+let sw = newx Stopwatch()
+time.sleep(30)
+sw.stop()
+T.check(sw.peek() >= 30, "stopwatch >= 30ms")
+
+printx("== sys ==")
+let parsed = sys.parse_args(["--name=Ada", "-v", "in.txt"])
+T.check_eq(sys.arg_named(parsed, "name"), "Ada", "arg_named")
+T.check(sys.has_flag(parsed, "v"), "has_flag")
+T.check_eq(sys.positional_args(parsed), ["in.txt"], "positional")
+T.check_eq(sys.version(), "mountx stdlib 1.0", "version")
+
+printx("== net ==")
+T.check_eq(net.url_encode("a b&c"), "a%20b%26c", "url_encode")
+T.check_eq(net.url_decode("a%20b%26c"), "a b&c", "url_decode")
+T.check_eq(net.url_decode("a+b"), "a b", "url_decode plus")
+T.check_eq(net.url_encode("a~b.c-d_e"), "a~b.c-d_e", "url_encode unreserved")
+let up = net.url_parse("https://example.com:8080/x/y?k=1&k2=two#frag")
+T.check_eq(map.pairs_get(up, "scheme"), "https", "url scheme")
+T.check_eq(map.pairs_get(up, "host"), "example.com", "url host")
+T.check_eq(map.pairs_get(up, "port"), "8080", "url port")
+T.check_eq(map.pairs_get(up, "path"), "/x/y", "url path")
+T.check_eq(map.pairs_get(up, "query"), "k=1&k2=two", "url query")
+T.check_eq(map.pairs_get(up, "fragment"), "frag", "url fragment")
+T.check_eq(net.url_build(up), "https://example.com:8080/x/y?k=1&k2=two#frag", "url round trip")
+T.check_eq(net.query_encode(net.query_parse("a=1&b=two")), "a=1&b=two", "query round trip")
+T.check_eq(map.pairs_get(net.query_parse("a=1&b=two+words"), "b"), "two words", "query plus = space")
+let req = net.http_request_text("GET", "http://api.test/hi?x=1", [["Accept", "text/plain"]], "")
+T.check_eq(req, "GET /hi HTTP/1.1\r\nHost: api.test\r\nAccept: text/plain\r\n\r\n", "http request text")
+let resp = net.http_parse_response("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nhello body")
+T.check_eq(resp[0], 200, "http status")
+T.check_eq(resp[2], "hello body", "http body")
+T.check_eq(resp[1][0], ["Content-Type", "text/plain"], "http header pair")
+
+printx("== os ==")
+T.check_eq(os.sep(), "/", "sep")
+T.check_eq(os.path_join(["stdlib", "core"]), "stdlib/core", "path_join")
+T.check_eq(os.path_basename("/a/b/c.mx"), "c.mx", "basename")
+T.check_eq(os.path_basename("c.mx"), "c.mx", "basename no dir")
+T.check_eq(os.path_parent("/a/b/c.mx"), "/a/b", "parent")
+T.check_eq(os.path_ext("report.txt"), "txt", "ext")
+T.check_eq(os.path_ext(".hidden"), "", "ext dotfile")
+T.check_eq(os.path_ext("noext"), "", "ext none")
+T.check_eq(os.env_or("MX_DEFINITELY_NOT_SET_12345", "fallback"), "fallback", "env_or")
+T.check(type.is_string(os.cwd()), "cwd string")
+T.check(type.is_array(os.listdir(".")), "listdir array")
+
+printx("== io ==")
+# $TMPDIR, never the repo root - see tmp_path() above.
+let tmp = tmp_path("mountx_fbtest_tmp.txt")
+T.check_eq(io.write_text(tmp, "line1\nline2"), true, "write_text")
+T.check_eq(io.read_text(tmp), "line1\nline2", "read_text")
+T.check_eq(io.append_line(tmp, "line3"), true, "append_line")
+T.check_eq(io.read_text(tmp), "line1\nline2\nline3\n", "read after append")
+# file now ends with \n, so the last split element is ""
+T.check_eq(io.read_lines(tmp), ["line1", "line2", "line3", ""], "read_lines trailing newline")
+T.check_eq(io.file_exists(tmp), true, "file_exists")
+T.check_eq(io.file_exists("no_such_file_12345.txt"), false, "file_exists missing")
+T.check_eq(io.read_text("no_such_file_12345.txt"), nullx, "read missing -> null")
+T.check_eq(io.write_lines(tmp, ["x", "y"]), true, "write_lines")
+T.check_eq(io.read_lines(tmp), ["x", "y"], "read_lines after write_lines")
+
+printx("== natives: idiv / math_floor / mx_version ==")
+T.check_eq(idiv(7, 2), 3, "native idiv pos")
+T.check_eq(idiv(-7, 2), -3, "native idiv truncates toward zero")
+T.check_eq(idiv(7, -2), -3, "native idiv negative divisor")
+T.check_eq(idiv(-7, -2), 3, "native idiv both negative")
+T.check_eq(idiv(0, 5), 0, "native idiv zero dividend")
+T.check_eq(idiv(9, 3), 3, "native idiv exact")
+T.check_eq(idiv(2, 7), 0, "native idiv smaller dividend")
+T.check_eq(math_floor(2.9), 2, "native math_floor pos")
+T.check_eq(math_floor(-2.1), -3, "native math_floor neg")
+T.check_eq(math_floor(4), 4, "native math_floor int passthrough")
+T.check_eq(mx_version(), "1.1.0", "mx_version matches interpreter VERSION")
+T.check(type.is_string(mx_version()), "mx_version returns string")
+let idiv_err = error.attempt(cb_idiv_zero)
+T.check_eq(idiv_err[0], "err", "idiv by zero raises")
+T.check_eq(error.result_error(idiv_err), "idiv: division by zero", "idiv error message")
+
+printx("== module let access ==")
+T.check(type.is_instance(random._default_rng, "Rand"), "random._default_rng reachable")
+T.check(type.is_int(random._default_rng.s), "_default_rng.s is an int")
+random.seed_rng(42)
+let rng_a = random.rand_below(1000000)
+random.seed_rng(42)
+let rng_b = random.rand_below(1000000)
+T.check_eq(rng_a, rng_b, "_default_rng reproducible after seed_rng")
+T.check(random.rand_below(100) < 100, "rand_below stays in range")
+
+printx("== db ==")
+T.check_eq(typeofx(db), "module", "importx db resolves")
+let db_conn = db.open(":memory:")
+T.check(type.is_int(db_conn), "db.open returns a connection id")
+T.check_eq(db.exec(db_conn, "CREATE TABLE t (id INT, name TEXT)"), -1, "DDL exec -> -1 rowcount")
+T.check_eq(db.exec_params(db_conn, "INSERT INTO t VALUES (?, ?)", [1, "Ziad"]), 1, "exec_params -> 1 row")
+T.check_eq(db.query(db_conn, "SELECT * FROM t"), [[1, "Ziad"]], "query round-trip")
+T.check_eq(db.query_one(db_conn, "SELECT * FROM t"), [1, "Ziad"], "query_one")
+T.check_eq(db.query_value(db_conn, "SELECT name FROM t WHERE id = 1"), "Ziad", "query_value")
+T.check_eq(db.query_value(db_conn, "SELECT name FROM t WHERE id = 99"), nullx, "query_value no rows -> null")
+T.check_eq(typeofx(db.close(db_conn)), "null", "db.close returns null")
+let db_err = error.attempt(cb_query_closed)
+T.check_eq(db_err[0], "err", "query after close raises")
+
+printx("== natives: str_ord / str_chr / sys_exec ==")
+T.check_eq(str_ord("A"), 65, "str_ord('A') == 65")
+T.check_eq(str_chr(65), "A", "str_chr(65) == 'A'")
+let exec_res = sys_exec("echo test_exec")
+T.check_eq(exec_res[0], 0, "sys_exec returns 0 exit code")
+T.check(string.contains(exec_res[1], "test_exec"), "sys_exec captures output")
+let sys_exit_code = os.system("echo test_os_system")
+T.check_eq(sys_exit_code, 0, "os.system returns 0 exit code")
+let http_get_guard = ""
+tryx { http_get(123) } catchx (e) { http_get_guard = "" + e }
+T.check(string.contains(http_get_guard, "http_get expects 1 string argument"), "http_get validates argument")
+let http_post_guard = ""
+tryx { http_post(123) } catchx (e) { http_post_guard = "" + e }
+T.check(string.contains(http_post_guard, "http_post expects (url, body, [content_type])"), "http_post validates arguments")
+
+printx("== args ==")
+let ap = args.create_parser("test", "test desc")
+ap.add_flag("verbose", "v", "verbose mode")
+ap.add_opt("name", "n", "guest", "user name")
+ap.add_arg("file", "file name")
+ap.parse(["--verbose", "--name=Ziad", "doc.txt"])
+T.check_eq(ap.get("verbose"), true, "args flag set")
+T.check_eq(ap.get("name"), "Ziad", "args opt set")
+T.check_eq(ap.positionals(), ["doc.txt"], "args positionals")
+
+printx("== enum ==")
+let Colors = enum.create(["RED", "GREEN", "BLUE"])
+T.check_eq(Colors.get("GREEN"), 1, "enum value")
+T.check_eq(Colors.name_of(2), "BLUE", "enum name_of")
+T.check(Colors.has_name("RED"), "enum has_name")
+
+printx("== exception ==")
+let val_err = newx exception.ValueError("bad value")
+T.check_eq(val_err.to_string(), "ValueError: bad value", "ValueError to_string")
+let caught = exception.try_or(cb_bad, "fallback")
+T.check_eq(caught, "fallback", "try_or catches exception")
+
+printx("== tuple ==")
+let tup = tuple.create([10, 20, 30])
+T.check_eq(tup.get(1), 20, "tuple get")
+T.check_eq(tup.size(), 3, "tuple size")
+T.check(tup.contains(30), "tuple contains")
+T.check_eq(tup.to_string(), "(10, 20, 30)", "tuple to_string")
+
+printx("== graph ==")
+let g = graph.create(false)
+g.add_edge("A", "B", 1)
+g.add_edge("B", "C", 2)
+T.check(g.has_edge("A", "B"), "graph has_edge")
+T.check_eq(g.bfs("A"), ["A", "B", "C"], "graph bfs")
+T.check_eq(g.shortest_path("A", "C"), ["A", "B", "C"], "graph shortest_path")
+
+printx("== regex ==")
+T.check(regex.is_match("^a+b$", "aaab"), "regex match plus")
+T.check(regex.is_match("[0-9]+", "foo 123 bar"), "regex match class")
+T.check(!regex.is_match("^xyz$", "abc"), "regex non match")
+T.check_eq(regex.replace("[0-9]+", "NUM", "item 42 done"), "item NUM done", "regex replace")
+
+printx("== datetime ==")
+let dt = datetime.from_timestamp(1700000000000)
+T.check_eq(dt.iso_format(), "2023-11-14T22:13:20", "datetime iso_format")
+T.check_eq(dt.format("YYYY/MM/DD"), "2023/11/14", "datetime custom format")
+T.check(datetime.is_leap_year(2024), "datetime is_leap_year true")
+T.check(!datetime.is_leap_year(2023), "datetime is_leap_year false")
+
+printx("== url ==")
+let u = url.parse_url("https://mountx.org:8080/path?q=test#sec")
+T.check_eq(u.scheme, "https", "url scheme")
+T.check_eq(u.host, "mountx.org", "url host")
+T.check_eq(u.port, 8080, "url port")
+T.check_eq(u.param("q"), "test", "url query param")
+T.check_eq(url.url_encode("hello world!"), "hello%20world%21", "url_encode")
+T.check_eq(url.url_decode("hello%20world%21"), "hello world!", "url_decode")
+
+printx("== process ==")
+let pr = process.run("echo mountx_process_test")
+T.check_eq(pr.code, 0, "process.run code 0")
+T.check(string.contains(pr.output, "mountx_process_test"), "process.run output")
+T.check(pr.success(), "process.run success")
+
+printx("== buffer ==")
+let buf = buffer.from_string("MountX")
+T.check_eq(buf.size(), 6, "buffer size")
+T.check_eq(buf.get(0), 77, "buffer get 'M'")
+T.check_eq(buf.to_hex(), "4d6f756e7458", "buffer to_hex")
+let buf2 = buffer.from_hex("4d6f756e7458")
+T.check_eq(buf2.to_string(), "MountX", "buffer from_hex round-trip")
+
+printx("== stdlib 1.1 ==")
+T.check_eq(stdlib.stdlib_version(), "mountx stdlib 1.1 - 37 modules", "stdlib 1.1 version")
+
+printx("== error diagnostics ==")
+let caught_msg = ""
+tryx {
+    let dummy = undef_xyz_123
+} catchx (e) {
+    caught_msg = e
+}
+T.check_eq(caught_msg, "Undefined variable 'undef_xyz_123'", "catchx captures clean message without prefix")
+T.check(!string.contains(caught_msg, "[Runtime]"), "catchx does not include [Runtime]")
+
+func _nested_err_caller() {
+    let dummy = undef_in_nested_fn
+}
+let caught_nested = ""
+tryx {
+    _nested_err_caller()
+} catchx (e) {
+    caught_nested = e
+}
+T.check_eq(caught_nested, "Undefined variable 'undef_in_nested_fn'", "catchx in nested call captures clean message")
+T.check(!string.contains(caught_nested, "Traceback"), "catchx does not include Traceback")
+
+printx("== socket & tcp ==")
+let t_server = newx socket.TcpServer(19090, "127.0.0.1")
+t_server.start()
+let t_client = newx socket.TcpClient("127.0.0.1", 19090)
+t_client.connect()
+let t_conn = t_server.accept()
+T.check(t_conn[0] > 0, "tcp server accepted client fd")
+T.check_eq(t_conn[1], "127.0.0.1", "tcp accepted client ip")
+
+let t_sent = t_client.send("PING_MOUNTX")
+T.check_eq(t_sent, 11, "tcp client sent 11 bytes")
+let t_recv = socket.recv(t_conn[0], 1024)
+T.check_eq(t_recv, "PING_MOUNTX", "tcp server received data")
+
+socket.send(t_conn[0], "PONG_MOUNTX")
+let t_reply = t_client.recv(1024)
+T.check_eq(t_reply, "PONG_MOUNTX", "tcp client received reply")
+
+t_client.close()
+socket.close(t_conn[0])
+t_server.close()
+T.check(true, "tcp sockets closed cleanly")
+
+printx("== http_server & web framework ==")
+func fb_web_handler(req, res) {
+    res.json([["status", "ok"], ["target", req.param("name")]])
+}
+
+let fb_app = http_server.new_app()
+fb_app.get("/hello/:name", fb_web_handler)
+
+let fb_raw_req = "GET /hello/mountx?format=json HTTP/1.1\r\nHost: localhost\r\nUser-Agent: MountX-Test\r\n\r\n"
+let fb_parsed = http_server.parse_request(fb_raw_req)
+T.check_eq(fb_parsed.method, "GET", "http parser extracts GET method")
+T.check_eq(fb_parsed.path, "/hello/mountx", "http parser extracts path")
+T.check_eq(fb_parsed.query_param("format"), "json", "http parser extracts query param")
+
+let fb_raw_res = fb_app.handle_raw(fb_raw_req)
+T.check(string.contains(fb_raw_res, "200 OK"), "http server generates 200 OK")
+T.check(string.contains(fb_raw_res, "\"target\":\"mountx\""), "http router matches params and builds JSON")
+
+let fb_404_res = fb_app.handle_raw("GET /unknown/path HTTP/1.1\r\n\r\n")
+T.check(string.contains(fb_404_res, "404 Not Found"), "http server generates 404 for unknown route")
+
+printx("== orm & sqlite query builder ==")
+let fb_db = orm.connect(":memory:")
+fb_db.exec("CREATE TABLE items (id INTEGER PRIMARY KEY, name TEXT, qty INT);")
+orm.table("items").insert([["name", "Apple"], ["qty", 10]])
+orm.table("items").insert([["name", "Banana"], ["qty", 5]])
+orm.table("items").insert([["name", "Cherry"], ["qty", 20]])
+T.check_eq(orm.table("items").count(), 3, "orm counts inserted rows")
+
+let fb_first = orm.table("items").where("name", "==", "Banana").first()
+T.check_eq(fb_first.get("qty"), 5, "orm where and first finds row")
+
+orm.table("items").where("name", "==", "Apple").update([["qty", 12]])
+let fb_updated = orm.table("items").where("name", "==", "Apple").first()
+T.check_eq(fb_updated.get("qty"), 12, "orm update modifies row")
+
+orm.table("items").where("name", "==", "Cherry").delete()
+T.check_eq(orm.table("items").count(), 2, "orm delete removes row")
+
+classx FbItem extends orm.Model {
+    func init() {
+        super("items", nullx)
+    }
+}
+let FbItems = newx FbItem()
+let fb_created = FbItems.create([["name", "Date"], ["qty", 15]])
+T.check_eq(fb_created.get("name"), "Date", "orm Model create returns new record")
+T.check_eq(FbItems.find(fb_created.get("id")).get("qty"), 15, "orm Model find returns created entity")
+orm.close_default()
+
+T.summary()
+
+unmountx

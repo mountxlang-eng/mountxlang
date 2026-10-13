@@ -1,0 +1,21 @@
+# examples/01_basics/09_enums.mx
+# Enumerations and state machines with the enum module
+
+mountx
+importx enum
+
+let OrderStatus = enum.create(["CREATED", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"])
+
+printx("Order Status Enum created.")
+printx("CREATED value: " + OrderStatus.get("CREATED"))
+printx("SHIPPED value: " + OrderStatus.get("SHIPPED"))
+printx("Value 3 corresponds to: " + OrderStatus.name_of(3))
+printx("Has name 'DELIVERED'? " + OrderStatus.has_name("DELIVERED"))
+printx("Has name 'REFUNDED'? " + OrderStatus.has_name("REFUNDED"))
+
+# Custom values enum
+let HTTP = enum.create([["OK", 200], ["NOT_FOUND", 404], ["SERVER_ERROR", 500]])
+printx("HTTP.OK code: " + HTTP.get("OK"))
+printx("HTTP 404 is: " + HTTP.name_of(404))
+
+unmountx

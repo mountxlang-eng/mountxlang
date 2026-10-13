@@ -1,0 +1,17 @@
+# examples/05_system_and_io/41_directory_traversal.mx
+# Directory listing and filtering files by extension
+
+mountx
+importx os
+
+printx("Listing entries in current directory:")
+let all_entries = os.listdir(os.cwd())
+printx("Found " + len(all_entries) + " entries.")
+
+printx("Filtering .sh and .bat scripts:")
+let scripts = os.listdir_ext(os.cwd(), ".sh")
+for s in scripts {
+    printx("  - " + s)
+}
+
+unmountx

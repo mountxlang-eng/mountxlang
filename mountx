@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# mountx - Pass-through shim for MountX CLI and REPL
+set -e
+
+# Resolve repository from real path with plain-realpath fallback
+TARGET="${BASH_SOURCE[0]}"
+while [ -L "$TARGET" ]; do
+    DIR="$(cd -P "$(dirname "$TARGET")" >/dev/null 2>&1 && pwd)"
+    TARGET="$(readlink "$TARGET")"
+    [[ "$TARGET" != /* ]] && TARGET="$DIR/$TARGET"
+done
+REPO_ROOT="$(cd -P "$(dirname "$TARGET")" >/dev/null 2>&1 && pwd)"
+
+MAIN_PY="${REPO_ROOT}/host/main.py"
+if [ ! -f "$MAIN_PY" ]; then
+    MAIN_PY="${REPO_ROOT}/main.py"
+fi
+
+if [ "$1" = "--selfhost" ]; then
+    shift
+    export MOUNTX_STD="${REPO_ROOT}/stdlib"
+    exec python3 "$MAIN_PY" "${REPO_ROOT}/selfhost/interp.mx" "$@"
+fi
+
+exec python3 "$MAIN_PY" "$@"

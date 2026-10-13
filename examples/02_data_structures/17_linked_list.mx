@@ -1,0 +1,26 @@
+# examples/02_data_structures/17_linked_list.mx
+# Linked List node-based data structure with add_front/add_back
+
+mountx
+importx linkedlist
+
+let ll = newx linkedlist.LinkedList()
+
+ll.add_back("B")
+ll.add_back("C")
+ll.add_front("A")
+ll.add_back("D")
+
+printx("Linked list count: " + ll.count)
+printx("List as array: " + ll.to_array())
+
+printx("Removed from front: " + ll.remove_front())
+printx("After remove front: " + ll.to_array())
+
+ll.remove_first("C")
+printx("After removing 'C': " + ll.to_array())
+
+ll.reverse()
+printx("After reverse: " + ll.to_array())
+
+unmountx

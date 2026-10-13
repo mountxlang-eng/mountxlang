@@ -1,0 +1,25 @@
+# examples/06_database_sqlite/53_sqlite_aggregations.mx
+# SQL aggregations: COUNT, SUM, AVG, MIN, MAX and GROUP BY
+
+mountx
+importx db
+
+let conn = db.open(":memory:")
+
+db.exec(conn, "CREATE TABLE sales (id INTEGER PRIMARY KEY, region TEXT, amount REAL);")
+db.exec(conn, "INSERT INTO sales (region, amount) VALUES ('North', 150.0), ('North', 250.0), ('South', 100.0), ('South', 300.0), ('West', 450.0);")
+
+printx("Aggregate summary by region:")
+let q = "SELECT region, count(*), sum(amount), avg(amount) FROM sales GROUP BY region ORDER BY sum(amount) DESC;"
+let rows = db.query(conn, q)
+
+for r in rows {
+    printx("  Region: " + r[0] + " | Deals: " + r[1] + " | Total: $" + r[2] + " | Avg: $" + r[3])
+}
+
+let total_sales = db.query_value(conn, "SELECT sum(amount) FROM sales;")
+printx("Overall Total Sales: $" + total_sales)
+
+db.close(conn)
+
+unmountx

@@ -1,0 +1,371 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# http_server.mx - Minimalist, high-performance HTTP/1.1 Web Framework for MountX
+# Provides Request parsing, Response building, Route matching, Middleware, and Server loop.
+
+importx socket
+importx string
+importx json
+importx net
+
+# ---------------------------------------------------------------------------
+#  Request: Represents incoming HTTP request
+# ---------------------------------------------------------------------------
+classx Request {
+    func init(method, raw_url, path, query_pairs, headers_pairs, body) {
+        this.method = method
+        this.url = raw_url
+        this.path = path
+        this.query = query_pairs
+        this.headers = headers_pairs
+        this.body = body
+        this.params = []
+    }
+
+    func header(key) {
+        let k_lower = string.lower(key)
+        for h in this.headers {
+            if string.lower(h[0]) == k_lower {
+                return h[1]
+            }
+        }
+        return nullx
+    }
+
+    func query_param(key) {
+        for q in this.query {
+            if q[0] == key {
+                return q[1]
+            }
+        }
+        return nullx
+    }
+
+    func param(key) {
+        for p in this.params {
+            if p[0] == key {
+                return p[1]
+            }
+        }
+        return nullx
+    }
+
+    func json() {
+        if this.body == nullx || this.body == "" {
+            return nullx
+        }
+        return json.parse(this.body)
+    }
+}
+
+# ---------------------------------------------------------------------------
+#  JSON Serialization Helper
+# ---------------------------------------------------------------------------
+func serialize_http_json(val) {
+    if val == nullx {
+        return "null"
+    }
+    let t = typeofx(val)
+    if t == "Record" {
+        return val.to_json()
+    }
+    if t == "array" {
+        if len(val) == 0 {
+            return "[]"
+        }
+        if typeofx(val[0]) == "array" && len(val[0]) == 2 && typeofx(val[0][0]) == "string" {
+            return json.stringify_pairs(val)
+        }
+        let parts = []
+        let i = 0
+        while i < len(val) {
+            let item = val[i]
+            if typeofx(item) == "array" && len(item) > 0 && typeofx(item[0]) == "array" && len(item[0]) == 2 && typeofx(item[0][0]) == "string" {
+                parts = parts + [json.stringify_pairs(item)]
+            } else {
+                parts = parts + [serialize_http_json(item)]
+            }
+            i = i + 1
+        }
+        return "[" + string.join(parts, ",") + "]"
+    }
+    return json.stringify(val)
+}
+
+# ---------------------------------------------------------------------------
+#  Response: Builder for HTTP/1.1 response
+# ---------------------------------------------------------------------------
+classx Response {
+    func init() {
+        this.status_code = 200
+        this.status_text = "OK"
+        this.headers = [
+            ["Server", "MountX-HttpServer/1.0"],
+            ["Content-Type", "text/plain; charset=utf-8"],
+            ["Connection", "close"]
+        ]
+        this.body = ""
+        this.is_sent = false
+    }
+
+    func status(code) {
+        this.status_code = code
+        if code == 200 { this.status_text = "OK" }
+        else if code == 201 { this.status_text = "Created" }
+        else if code == 204 { this.status_text = "No Content" }
+        else if code == 400 { this.status_text = "Bad Request" }
+        else if code == 401 { this.status_text = "Unauthorized" }
+        else if code == 403 { this.status_text = "Forbidden" }
+        else if code == 404 { this.status_text = "Not Found" }
+        else if code == 405 { this.status_text = "Method Not Allowed" }
+        else if code == 500 { this.status_text = "Internal Server Error" }
+        else { this.status_text = "Status " + code }
+        return this
+    }
+
+    func set_header(key, val) {
+        let found = false
+        let new_headers = []
+        for h in this.headers {
+            if string.lower(h[0]) == string.lower(key) {
+                new_headers = new_headers + [[key, val]]
+                found = true
+            } else {
+                new_headers = new_headers + [h]
+            }
+        }
+        if !found {
+            new_headers = new_headers + [[key, val]]
+        }
+        this.headers = new_headers
+        return this
+    }
+
+    func send(text) {
+        this.body = "" + text
+        this.set_header("Content-Length", "" + len(this.body))
+        this.is_sent = true
+        return this
+    }
+
+    func text(plain_text) {
+        this.set_header("Content-Type", "text/plain; charset=utf-8")
+        return this.send(plain_text)
+    }
+
+    func html(html_content) {
+        this.set_header("Content-Type", "text/html; charset=utf-8")
+        return this.send(html_content)
+    }
+
+    func json(data) {
+        this.set_header("Content-Type", "application/json; charset=utf-8")
+        let json_str = serialize_http_json(data)
+        return this.send(json_str)
+    }
+
+    func build() {
+        let lines = ["HTTP/1.1 " + this.status_code + " " + this.status_text]
+        for h in this.headers {
+            lines = lines + [h[0] + ": " + h[1]]
+        }
+        return string.join(lines, "\r\n") + "\r\n\r\n" + this.body
+    }
+}
+
+# ---------------------------------------------------------------------------
+#  Parsing & Matching Helpers
+# ---------------------------------------------------------------------------
+func parse_request(raw_text) {
+    let sep = string.index_of(raw_text, "\r\n\r\n")
+    let head_str = raw_text
+    let body_str = ""
+    if sep >= 0 {
+        head_str = string.substr(raw_text, 0, sep)
+        body_str = string.substr(raw_text, sep + 4, len(raw_text))
+    }
+    let lines = string.split(head_str, "\r\n")
+    if len(lines) == 1 {
+        lines = string.split(head_str, "\n")
+    }
+    if len(lines) == 0 {
+        return newx Request("GET", "/", "/", [], [], "")
+    }
+
+    let req_line = lines[0]
+    let parts = string.split(req_line, " ")
+    let method = "GET"
+    let raw_url = "/"
+    if len(parts) > 0 { method = parts[0] }
+    if len(parts) > 1 { raw_url = parts[1] }
+
+    let path = raw_url
+    let query_pairs = []
+    let q_idx = string.index_of(raw_url, "?")
+    if q_idx >= 0 {
+        path = string.substr(raw_url, 0, q_idx)
+        let q_str = string.substr(raw_url, q_idx + 1, len(raw_url))
+        query_pairs = net.query_parse(q_str)
+    }
+
+    let headers = []
+    let i = 1
+    while i < len(lines) {
+        let line = lines[i]
+        let c_idx = string.index_of(line, ":")
+        if c_idx > 0 {
+            let k = string.trim(string.substr(line, 0, c_idx))
+            let v = string.trim(string.substr(line, c_idx + 1, len(line)))
+            headers = headers + [[k, v]]
+        }
+        i = i + 1
+    }
+
+    return newx Request(method, raw_url, path, query_pairs, headers, body_str)
+}
+
+func match_route(pattern, path) {
+    if pattern == path {
+        return [true, []]
+    }
+    let pat_parts = string.split(pattern, "/")
+    let path_parts = string.split(path, "/")
+    if len(pat_parts) != len(path_parts) {
+        return [false, []]
+    }
+    let params = []
+    let i = 0
+    while i < len(pat_parts) {
+        let p_item = pat_parts[i]
+        let r_item = path_parts[i]
+        if string.starts_with(p_item, ":") {
+            let p_name = string.substr(p_item, 1, len(p_item))
+            params = params + [[p_name, r_item]]
+        } else if p_item != r_item {
+            return [false, []]
+        }
+        i = i + 1
+    }
+    return [true, params]
+}
+
+# ---------------------------------------------------------------------------
+#  App: Core Web Application Framework
+# ---------------------------------------------------------------------------
+classx App {
+    func init() {
+        this.routes = []
+        this.middlewares = []
+        this.server_fd = nullx
+        this.running = false
+    }
+
+    func use(middleware_func) {
+        this.middlewares = this.middlewares + [middleware_func]
+        return this
+    }
+
+    func add_route(method, pattern, handler) {
+        this.routes = this.routes + [[string.upper(method), pattern, handler]]
+        return this
+    }
+
+    func get(pattern, handler) {
+        return this.add_route("GET", pattern, handler)
+    }
+
+    func post(pattern, handler) {
+        return this.add_route("POST", pattern, handler)
+    }
+
+    func put(pattern, handler) {
+        return this.add_route("PUT", pattern, handler)
+    }
+
+    func delete(pattern, handler) {
+        return this.add_route("DELETE", pattern, handler)
+    }
+
+    func handle_raw(raw_text) {
+        let req = parse_request(raw_text)
+        let res = newx Response()
+
+        # Execute middlewares
+        for m in this.middlewares {
+            m(req, res)
+            if res.is_sent {
+                return res.build()
+            }
+        }
+
+        # Match routes
+        let matched = false
+        for r in this.routes {
+            if !matched {
+                let r_method = r[0]
+                let r_pattern = r[1]
+                let r_handler = r[2]
+
+                if r_method == req.method {
+                    let match_res = match_route(r_pattern, req.path)
+                    if match_res[0] {
+                        req.params = match_res[1]
+                        matched = true
+                        r_handler(req, res)
+                    }
+                }
+            }
+        }
+
+        if !matched {
+            res.status(404)
+            res.json([
+                ["error", "Not Found"],
+                ["method", req.method],
+                ["path", req.path]
+            ])
+        }
+
+        return res.build()
+    }
+
+    func listen(port, host, max_requests) {
+        let bind_host = host
+        if bind_host == nullx {
+            bind_host = "0.0.0.0"
+        }
+        this.server_fd = socket.listen(port, bind_host)
+        this.running = true
+        printx("==================================================")
+        printx("  🚀 MountX Web Application Running!")
+        printx("  🌐 Listening on: http://" + bind_host + ":" + port)
+        printx("==================================================")
+
+        let req_count = 0
+        while this.running {
+            let conn = socket.accept(this.server_fd)
+            if conn != nullx && typeofx(conn) == "array" && len(conn) >= 2 {
+                let client_fd = conn[0]
+                let client_ip = conn[1]
+
+                if client_fd > 0 {
+                    let raw_data = socket.recv(client_fd, 8192)
+                    if raw_data != nullx && raw_data != "" {
+                        let resp_text = this.handle_raw(raw_data)
+                        socket.send(client_fd, resp_text)
+                    }
+                    socket.close(client_fd)
+                    req_count = req_count + 1
+                    if max_requests != nullx && req_count >= max_requests {
+                        this.running = false
+                    }
+                }
+            }
+        }
+        socket.close(this.server_fd)
+        this.server_fd = nullx
+    }
+}
+
+func new_app() {
+    return newx App()
+}

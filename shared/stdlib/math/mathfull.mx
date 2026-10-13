@@ -1,0 +1,257 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# mathfull.mx - extra math (fast natives: math_floor + idiv)
+
+importx string
+
+# integer division, truncates toward zero; b must not be 0
+# Now a thin wrapper over native idiv (exact for big ints)
+func idiv(a, b) {
+    return idiv(a, b)
+}
+
+func floor(x) {
+    let t = typeofx(x)
+    if t == "int" { return x }
+    if t != "float" { throwx "floor expects a number" }
+    return math_floor(x)
+}
+
+func trunc(x) {
+    let t = typeofx(x)
+    if t == "int" { return x }
+    if t != "float" { throwx "trunc expects a number" }
+    if x >= 0 {
+        return math_floor(x)
+    }
+    return 0 - math_floor(0 - x)
+}
+
+func ceil(x) {
+    let t = typeofx(x)
+    if t == "int" { return x }
+    if t != "float" { throwx "ceil expects a number" }
+    return 0 - math_floor(0 - x)
+}
+
+# rounds half away from zero
+func round(x) {
+    if x >= 0 {
+        return trunc(x + 0.5)
+    }
+    return trunc(x - 0.5)
+}
+
+func sign(x) {
+    if x > 0 {
+        return 1
+    }
+    if x < 0 {
+        return -1
+    }
+    return 0
+}
+
+func is_even(n) {
+    return n % 2 == 0
+}
+
+func is_odd(n) {
+    return n % 2 != 0
+}
+
+# integer exponent >= 0 (stays exact for ints)
+func ipow(base, exp) {
+    if exp < 0 {
+        throwx "ipow: exponent must be >= 0"
+    }
+    let result = 1
+    while exp > 0 {
+        if exp % 2 == 1 {
+            result = result * base
+        }
+        base = base * base
+        exp = idiv(exp, 2)
+    }
+    return result
+}
+
+func gcd(a, b) {
+    if a < 0 {
+        a = 0 - a
+    }
+    if b < 0 {
+        b = 0 - b
+    }
+    while b != 0 {
+        let t = a % b
+        a = b
+        b = t
+    }
+    return a
+}
+
+func lcm(a, b) {
+    if a == 0 || b == 0 {
+        return 0
+    }
+    return idiv(a, gcd(a, b)) * b
+}
+
+func is_prime(n) {
+    if n < 2 {
+        return false
+    }
+    if n < 4 {
+        return true
+    }
+    if n % 2 == 0 {
+        return false
+    }
+    let i = 3
+    while i * i <= n {
+        if n % i == 0 {
+            return false
+        }
+        i = i + 2
+    }
+    return true
+}
+
+# trial division; fine for n up to a few thousand
+func primes_below(n) {
+    let out = []
+    let i = 2
+    while i < n {
+        if is_prime(i) {
+            out = out + [i]
+        }
+        i = i + 1
+    }
+    return out
+}
+
+# Newton's method; returns a float
+func sqrt(n) {
+    if n < 0 {
+        throwx "sqrt of negative number"
+    }
+    if n == 0 {
+        return 0
+    }
+    let x = 1
+    while x * x <= n {
+        x = x * 2
+    }
+    loop 60 {
+        x = (x + n / x) / 2
+    }
+    return x
+}
+
+# digits of |n|, most significant first: digits(3407) -> [3, 4, 0, 7]
+func digits(n) {
+    if typeofx(n) != "int" {
+        throwx "digits expects an int"
+    }
+    if n < 0 {
+        n = 0 - n
+    }
+    let s = "" + n
+    let dg = "0123456789"
+    let out = []
+    let i = 0
+    while i < len(s) {
+        let d = string.index_of(dg, s[i])
+        if d < 0 {
+            throwx "digits: unexpected character"
+        }
+        out = out + [d]
+        i = i + 1
+    }
+    return out
+}
+
+# inverse of digits: undigits([3, 4, 0, 7]) -> 3407
+func undigits(ds) {
+    let v = 0
+    for d in ds {
+        if d < 0 || d > 9 {
+            throwx "undigits: values must be 0..9"
+        }
+        v = v * 10 + d
+    }
+    return v
+}
+
+func sum_digits(n) {
+    let s = 0
+    for d in digits(n) {
+        s = s + d
+    }
+    return s
+}
+
+# value -> string in base b (2..36); negatives get a leading "-"
+func to_base(n, b) {
+    if b < 2 || b > 36 {
+        throwx "to_base: base must be 2..36"
+    }
+    let ch = "0123456789abcdefghijklmnopqrstuvwxyz"
+    if n == 0 {
+        return "0"
+    }
+    let neg = false
+    if n < 0 {
+        neg = true
+        n = 0 - n
+    }
+    let ds = []
+    while n > 0 {
+        ds = ds + [n % b]
+        n = idiv(n, b)
+    }
+    let out = ""
+    let i = len(ds) - 1
+    while i >= 0 {
+        out = out + ch[ds[i]]
+        i = i - 1
+    }
+    if neg {
+        return "-" + out
+    }
+    return out
+}
+
+# string in base b (2..36) -> int; optional leading "-"
+func from_base(s, b) {
+    if b < 2 || b > 36 {
+        throwx "from_base: base must be 2..36"
+    }
+    let ch = "0123456789abcdefghijklmnopqrstuvwxyz"
+    let t = string.trim(s)
+    if len(t) == 0 {
+        throwx "from_base: empty string"
+    }
+    let i = 0
+    let neg = false
+    if t[0] == "-" {
+        neg = true
+        i = 1
+    }
+    if i >= len(t) {
+        throwx "from_base: no digits"
+    }
+    let v = 0
+    while i < len(t) {
+        let d = string.index_of(ch, string.lower(t[i]))
+        if d < 0 || d >= b {
+            throwx "from_base: bad digit '" + t[i] + "' for base " + b
+        }
+        v = v * b + d
+        i = i + 1
+    }
+    if neg {
+        return 0 - v
+    }
+    return v
+}

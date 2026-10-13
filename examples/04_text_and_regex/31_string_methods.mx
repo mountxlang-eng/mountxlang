@@ -1,0 +1,29 @@
+# examples/04_text_and_regex/31_string_methods.mx
+# String inspection, transformation, and formatting with string module
+
+mountx
+importx string
+
+let text = "  MountX Programming Language  "
+printx("Original: '" + text + "'")
+
+let trimmed = string.trim(text)
+printx("Trimmed: '" + trimmed + "'")
+printx("Uppercase: '" + string.to_upper(trimmed) + "'")
+printx("Lowercase: '" + string.to_lower(trimmed) + "'")
+
+printx("Starts with 'Mount'? " + string.starts_with(trimmed, "Mount"))
+printx("Ends with 'Language'? " + string.ends_with(trimmed, "Language"))
+printx("Contains 'Gram'? " + string.contains(trimmed, "gram"))
+
+# Split and Join
+let words = string.split(trimmed, " ")
+printx("Words array: " + words)
+
+let hyphenated = string.join(words, "-")
+printx("Hyphenated: " + hyphenated)
+
+let replaced = string.replace(trimmed, "Language", "Ecosystem")
+printx("Replaced: " + replaced)
+
+unmountx

@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# mountx - the MountX CLI (I-M10). A pass-through shim and nothing more: it
+# resolves this repository from its own real path, then delegates to main.py.
+# Every flag main.py understands (--version, --help, -e, a .mx file, no
+# arguments for the REPL) is forwarded untouched. main.py is never edited, and
+# a new capability is a flag HERE rather than a change there.
+set -euo pipefail
+# Resolve this script through any symlinks so a link in ~/.local/bin still finds
+# the repository. `realpath -f` is GNU and resolves the whole chain; plain
+# `realpath` is the portable fallback (uutils coreutils rejects -f).
+self="$(realpath -f -- "${BASH_SOURCE[0]}" 2>/dev/null || realpath -- "${BASH_SOURCE[0]}")"
+ROOT="$(cd -- "$(dirname -- "$self")" && pwd -P)"
+if [ "${1:-}" = "--selfhost" ]; then
+    # The port takes its guest from argv, so the wrapper's own flag is shifted
+    # off and the .mx file lands where interp.mx's bootstrap expects it.
+    shift
+    export MOUNTX_STD="$ROOT/stdlib"
+    exec python3 "$ROOT/main.py" "$ROOT/selfhost/interp.mx" "$@"
+fi
+exec python3 "$ROOT/main.py" "$@"

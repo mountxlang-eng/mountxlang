@@ -1,0 +1,100 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# tuple.mx - immutable sequence data structure (data/)
+# Usage:
+#   importx tuple
+#   let t = tuple.create([1, "a", true])
+#   t.get(0)        # 1
+#   t.len()         # 3
+#   t.contains("a") # true
+
+importx string
+
+classx Tuple {
+    let _data = []
+
+    func init(items) {
+        this._data = []
+        if items != nullx {
+            for x in items {
+                this._data = this._data + [x]
+            }
+        }
+    }
+
+    func get(idx) {
+        if idx < 0 || idx >= len(this._data) {
+            throwx "Tuple index out of range: " + idx
+        }
+        return this._data[idx]
+    }
+
+    func size() {
+        return len(this._data)
+    }
+
+    func to_array() {
+        let copy = []
+        for x in this._data {
+            copy = copy + [x]
+        }
+        return copy
+    }
+
+    func contains(val) {
+        for x in this._data {
+            if x == val {
+                return true
+            }
+        }
+        return false
+    }
+
+    func index_of(val) {
+        let i = 0
+        while i < len(this._data) {
+            if this._data[i] == val {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+
+    func slice(start, end) {
+        let s = start
+        let e = end
+        if s < 0 { s = 0 }
+        if e > len(this._data) { e = len(this._data) }
+        let sub = []
+        let i = s
+        while i < e {
+            sub = sub + [this._data[i]]
+            i = i + 1
+        }
+        return newx Tuple(sub)
+    }
+
+    func concat(other) {
+        let combined = []
+        for x in this._data {
+            combined = combined + [x]
+        }
+        let other_arr = other.to_array()
+        for y in other_arr {
+            combined = combined + [y]
+        }
+        return newx Tuple(combined)
+    }
+
+    func to_string() {
+        let strs = []
+        for x in this._data {
+            strs = strs + ["" + x]
+        }
+        return "(" + string.join(strs, ", ") + ")"
+    }
+}
+
+func create(items) {
+    return newx Tuple(items)
+}

@@ -1,0 +1,36 @@
+# examples/04_text_and_regex/37_word_frequency.mx
+# Word frequency counter and text analyzer
+
+mountx
+importx string
+importx dict
+
+func analyze_text(paragraph) {
+    let cleaned = string.to_lower(paragraph)
+    let words = string.split(cleaned, " ")
+    let counts = newx dict.Dict()
+
+    for w in words {
+        let word = string.trim(w)
+        if word != "" {
+            let cur = counts.get(word)
+            if cur == nullx {
+                counts.set(word, 1)
+            } else {
+                counts.set(word, cur + 1)
+            }
+        }
+    }
+    return counts
+}
+
+let sample_text = "mountx is fast mountx is small mountx is powerful and fast"
+printx("Sample text: " + sample_text)
+let freq = analyze_text(sample_text)
+
+printx("Unique words: " + len(freq.keys))
+for k in freq.keys {
+    printx("  '" + k + "' -> " + freq.get(k) + " occurrences")
+}
+
+unmountx

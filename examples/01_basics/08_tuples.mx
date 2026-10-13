@@ -1,0 +1,19 @@
+# examples/01_basics/08_tuples.mx
+# Immutable tuples with the tuple module
+
+mountx
+importx tuple
+
+let point = tuple.create([10, 20, 30])
+printx("Tuple size: " + point.size())
+printx("Element at 0: " + point.get(0))
+printx("Element at 1: " + point.get(1))
+printx("Element at 2: " + point.get(2))
+printx("Contains 20? " + point.contains(20))
+printx("Contains 99? " + point.contains(99))
+
+# Unpack tuple to array
+let arr = point.to_array()
+printx("Unpacked array: " + arr)
+
+unmountx

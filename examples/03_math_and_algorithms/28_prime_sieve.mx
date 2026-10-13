@@ -1,0 +1,42 @@
+# examples/03_math_and_algorithms/28_prime_sieve.mx
+# Sieve of Eratosthenes prime number generator
+
+mountx
+importx arrayfull
+
+func sieve_of_eratosthenes(limit) {
+    if limit < 2 { return [] }
+
+    # Array of booleans: true means prime candidate
+    let is_prime_arr = arrayfull.fill(true, limit + 1)
+    is_prime_arr[0] = false
+    is_prime_arr[1] = false
+
+    let p = 2
+    while p * p <= limit {
+        if is_prime_arr[p] {
+            let multiple = p * p
+            while multiple <= limit {
+                is_prime_arr[multiple] = false
+                multiple = multiple + p
+            }
+        }
+        p = p + 1
+    }
+
+    let primes = []
+    let i = 2
+    while i <= limit {
+        if is_prime_arr[i] {
+            primes = primes + [i]
+        }
+        i = i + 1
+    }
+    return primes
+}
+
+let primes_up_to_50 = sieve_of_eratosthenes(50)
+printx("Primes up to 50: " + primes_up_to_50)
+printx("Count of primes up to 50: " + len(primes_up_to_50))
+
+unmountx

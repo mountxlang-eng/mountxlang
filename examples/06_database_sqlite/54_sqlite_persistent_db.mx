@@ -1,0 +1,33 @@
+# examples/06_database_sqlite/54_sqlite_persistent_db.mx
+# Persistent file-based SQLite database with verification
+
+mountx
+importx db
+importx os
+
+let db_file = os.path_join([os.cwd(), "tmp_sample_database.db"])
+
+# Remove if existed previously
+os.system("rm -f " + db_file)
+
+# 1. Open persistent DB, create table, and insert data
+let conn1 = db.open(db_file)
+db.exec(conn1, "CREATE TABLE settings (key TEXT PRIMARY KEY, val TEXT);")
+db.exec(conn1, "INSERT INTO settings VALUES ('theme', 'dark'), ('autosave', 'true');")
+db.close(conn1)
+printx("Created persistent DB and wrote settings.")
+
+# 2. Re-open DB in a new connection to prove persistence
+let conn2 = db.open(db_file)
+let rows = db.query(conn2, "SELECT key, val FROM settings;")
+printx("Read back settings from persistent file:")
+for r in rows {
+    printx("  " + r[0] + " = " + r[1])
+}
+db.close(conn2)
+
+# Cleanup
+os.system("rm -f " + db_file)
+printx("Persistent DB test complete & cleaned up.")
+
+unmountx

@@ -1,0 +1,1680 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# compiler.mx - B-2: a MountX-to-C transpiler, written in MountX.
+#
+# Input: a .mx source file. Output: a .c file that, compiled and linked
+# against mini.c's substrate, reproduces the host's bytes.
+#
+# WHY A TRANSPILER AND NOT A COMPILER (COMPILE_DESIGN §1.2): phase 1 of CB-A has
+# the emitter written in MountX so it inherits the differential harness. This is
+# a direct transcription of the AST into C statements - no optimisation, no
+# register allocation, no constant folding. §5 of B-2's kickoff: correctness
+# first, and the emitted code is deliberately naive so that a failure is a
+# transcription defect rather than an optimiser defect.
+#
+# THE CORPUS IS THE AUTHORITY. Not this file, and not the C it would rather
+# emit. Every construct here exists because a case in b1/corpus needs it, and
+# case 09 already proved that the convenient reading of the scoping rules is
+# wrong.
+#
+# It imports parser.mx, so the front end is the ONE phase-2 port, not a second
+# parser written here.
+
+importx parser
+importx io
+importx string
+
+# ------------------------------------------------------------------
+# The emitted program's identity. Each translation unit is standalone, so
+# names are file-local and cannot collide with the substrate.
+# ------------------------------------------------------------------
+let UNIT = "gen"
+let SOURCE = ""
+let TOPLEVEL = ""
+
+func fn_name(base) {
+    return "mx_" + base + "_" + UNIT
+}
+
+# A C string literal. Every string the emitter writes goes through here, so an
+# unescaped quote cannot produce a .c file that fails to compile.
+func c_str(s) {
+    let out = "\""
+    for ch in string.split(s, "") {
+        if ch == "\"" {
+            out = out + "\\\""
+        } else if ch == "\\" {
+            out = out + "\\\\"
+        } else if ch == "\n" {
+            out = out + "\\n"
+        } else if ch == "\t" {
+            out = out + "\\t"
+        } else if ch == "\r" {
+            out = out + "\\r"
+        } else {
+            out = out + ch
+        }
+    }
+    return out + "\""
+}
+
+func callee_name(n) {
+    let c = n.callee
+    if c.kind != "Ident" {
+        throwx "emit_expr: only an Ident callee is in the B-2 subset"
+    }
+    return c.name
+}
+
+# mx_call_list - call a generated function OR a generated METHOD.
+#
+# A method call is `obj.m(args)`, which parses as a Call whose callee is a
+# DotAccess - so the emitted code cannot just take a name. mx_call_list takes the
+# RECEIVER'S VALUE plus the method name and resolves through the class chain, and
+# an ordinary call passes null for the receiver. One C entry point, one convention,
+# so a method call cannot take a different path from a function call by accident.
+func call_expr(n) {
+    if n.callee.kind == "DotAccess" {
+        # a METHOD call: the name and the RECEIVER go in the first two slots.
+        return "mx_call_list(" + c_str(n.callee.field) + ", " +
+               emit_expr(n.callee.object) + ", " + emit_args(n.args)
+    }
+    return "mx_call_list(" + c_str(callee_name(n)) + ", mx_null(), " +
+           emit_args(n.args)
+}
+
+# emit_args - the six argument slots of a call, zero-padded.
+#
+# mx_call_list has a FIXED six-argument shape (name, recv, p0..p5, nargs) and the
+# count is passed separately, so every call must fill all six. Padding here
+# rather than in mx_call_list is deliberate: a variadic C function cannot be
+# called through a uniform prototype without the caller knowing the count, and
+# the generated code always knows it. One helper for both call shapes, because a
+# second padder is a second thing to forget - which is exactly the bug this
+# fixes: the DotAccess branch padded and the plain branch did not, so a
+# zero-argument method call emitted 4 arguments to a 9-argument function.
+func emit_args(args) {
+    let slots = ["mx_null()", "mx_null()", "mx_null()",
+                 "mx_null()", "mx_null()", "mx_null()"]
+    let d = 0
+    while d < len(args) && d < 6 {
+        slots[d] = emit_expr(args[d])
+        d = d + 1
+    }
+    return slots[0] + ", " + slots[1] + ", " + slots[2] + ", " + slots[3] +
+           ", " + slots[4] + ", " + slots[5] + ", " + len(args) + ")"
+}
+
+# C type names for the tags. The substrate has MX_INT and MX_NUM separate, so a
+# host int and a host float cannot be confused (COMPILE_DESIGN §2.2).
+func lit_expr(v, kind) {
+    if kind == "INT" {
+        # The literal is an INT, so emit its digits - not a quoted string with
+        # LL glued on. The first draft produced mx_int("1"LL), which is a C
+        # compile error; the review of the generated file is what caught it.
+        return "mx_int(" + int_digits(v) + "LL)"
+    }
+    if kind == "FLOAT" {
+        return "mx_num(" + float_digits(v) + ")"
+    }
+    if kind == "STRING" {
+        return "mx_str(" + c_str(v) + ")"
+    }
+    if kind == "BOOL" {
+        if v == true {
+            return "mx_bool(1)"
+        }
+        return "mx_bool(0)"
+    }
+    if kind == "NULL" {
+        return "mx_null()"
+    }
+    throwx "lit_expr: unknown literal kind '" + kind + "'"
+    return "mx_null()"
+}
+
+# int_digits(v) - MountX holds an int as a float, and "" + 7 gives "7" while
+# "" + 1.5 gives "1.5". An INT literal must never gain a decimal point, so this
+# is not just string concatenation: it is the point of CB1's literal path.
+func int_digits(v) {
+    let s = "" + v
+    if string.contains(s, ".") {
+        let cut = string.index_of(s, ".")
+        s = string.substr(s, 0, cut)
+    }
+    return s
+}
+
+# float_digits(v) - a float literal needs a decimal point or C reads it as an
+# int, and it must be written so the round-trip loop (mx_py_repr) reproduces
+# the host's spelling. The host's own repr is the shortest round-tripping
+# string, so writing that string's digits back is exact.
+func float_digits(v) {
+    let s = "" + v
+    if not string.contains(s, ".") {
+        if not string.contains(s, "e") && not string.contains(s, "E") {
+            s = s + ".0"
+        }
+    }
+    return s
+}
+# ------------------------------------------------------------------
+# emit_expr - a MountX expression becomes a C expression string.
+#
+# The corpus's kinds are exactly Literal, Ident, BinOp, Call and TypeOf
+# (corpus/kinds.txt). Anything else is a hard refusal, never a silent
+# substitution: a missing kind must fail loudly or a case that happens to
+# avoid it would pass by never being called.
+# ------------------------------------------------------------------
+# op_symbol(kind) - the AST's op NAMES become the substrate's symbols.
+#
+# parser.mx emits "PLUS"/"MUL"/"DIV" (parser.py's spelling, INTERP_DESIGN 7.1)
+# while mini.c's mx_binop compares against "+", "*", "/". Mapping them HERE,
+# in the emitter, is the right place: the substrate keeps the C spelling and
+# the emitter owns the AST spelling, so neither has to know about the other.
+# An unmapped op is refused by name rather than emitted as a guess.
+func op_symbol(kind) {
+    if kind == "PLUS" {
+        return "+"
+    }
+    if kind == "MINUS" {
+        return "-"
+    }
+    if kind == "MOD" {
+        return "%"
+    }
+    if kind == "EQEQ" {
+        return "=="
+    }
+    if kind == "NEQ" {
+        return "!="
+    }
+    if kind == "GT" {
+        return ">"
+    }
+    if kind == "LT" {
+        return "<"
+    }
+    if kind == "GTE" {
+        return ">="
+    }
+    if kind == "LTE" {
+        return "<="
+    }
+    if kind == "MUL" {
+        return "*"
+    }
+    if kind == "DIV" {
+        return "/"
+    }
+    throwx "op_symbol: '" + kind + "' is outside the B-2 subset"
+    return "?"
+}
+
+# emit_expr_list - the ARGUMENT values, left to right, as a comma expression.
+#
+# A comma expression is the only C form that evaluates several values into one
+# expression, and it evaluates them LEFT TO RIGHT (the sequence point at each
+# comma) - which is the host's order (interpreter.py:559). Function-call argument
+# order in C is UNSPECIFIED, so passing them straight to a call would make a
+# corpus case whose arguments both print pass or fail by compiler mood.
+func emit_expr_list(args) {
+    let out = ""
+    let i = 0
+    while i < len(args) {
+        if i > 0 {
+            out = out + ", "
+        }
+        out = out + emit_expr(args[i])
+        i = i + 1
+    }
+    return out
+}
+
+# lowerx - a node kind as the NATIVE's name. The parser spells the kinds
+# Capitalised (Read, Write, Append, Export) because they are AST kinds, while the
+# natives are lower-case identifiers (readx, writex). The mapping is one
+# lowercasing step, done here rather than with a table of four pairs: a table is
+# four chances to typo a name that only fails when a program uses that file.
+func lowerx(k) {
+    return string.lower(k)
+}
+
+# file_args - the argument array a file builtin receives.
+#
+# It is a COMPOUND LITERAL (an array in scope for the call), because
+# mx_file_builtin's signature takes the values as an array plus a count - the
+# same shape mx_call_list uses internally. Emitting them as a comma list instead
+# would mean a second signature for the same five functions.
+func file_args(args) {
+    # STRING CONCATENATION rather than a join helper: the emitter builds every
+    # other comma-separated list this way (emit_args, the field tables), and a
+    # join imported for one call site is one more name that can be shadowed.
+    let out = "(MxValue[]){ "
+    let i = 0
+    while i < len(args) && i < 4 {
+        if i > 0 { out = out + ", " }
+        out = out + emit_expr(args[i])
+        i = i + 1
+    }
+    return out + " }, " + i
+}
+
+func emit_expr(n) {
+    let k = n.kind
+    if k == "Literal" {
+        return lit_expr(n.value, n.value_type)
+    }
+    if k == "This" {
+        # `this` is its own node kind, not an Ident (parser.py:342) - so a port
+        # that only handled Ident refused it with "node kind 'This' is outside the
+        # B-2 subset", naming a construct the corpus uses in every method.
+        # It resolves to the frame's receiver, which the method's prologue bound
+        # under this name; so the read is an ordinary environment lookup.
+        return "mx_eval_ident_gen(\"this\", " + ENV_NAME + ")"
+    }
+    if k == "Ident" {
+        # An Ident is a variable read - mx_eval_ident does the env walk, so the
+        # scoping rule lives in ONE place in the emitted code rather than being
+        # re-derived at every use site.
+        return "mx_eval_ident_gen" + "(" + c_str(n.name) + ", " + ENV_NAME + ")"
+    }
+    if k == "BinOp" {
+        # AND / OR SHORT-CIRCUIT as a C TERNARY, which is the only expression
+        # form that does not evaluate the untaken branch. The host does not
+        # evaluate the right operand when the left decides the result
+        # (interpreter.py:495-502), and that is observable: `false &&
+        # throwx("never")` must not throw. A mx_binop call would evaluate both
+        # arguments first and lose the property; the ternary keeps emit_expr
+        # total and stays a single expression.
+        if n.op == "AND" {
+            return "(mx_is_truthy(" + emit_expr(n.left) + ") ? mx_bool(mx_is_truthy(" +
+                   emit_expr(n.right) + ")) : mx_bool(0))"
+        }
+        if n.op == "OR" {
+            return "(mx_is_truthy(" + emit_expr(n.left) + ") ? mx_bool(1) : mx_bool(mx_is_truthy(" +
+                   emit_expr(n.right) + ")))"
+        }
+        return "mx_binop" + "(" + c_str(op_symbol(n.op)) + ", " +
+               emit_expr(n.left) + ", " + emit_expr(n.right) + ")"
+    }
+    if k == "Call" {
+        let args = n.args
+        # NATIVES come BEFORE user functions, matching the host's order in
+        # eval_call (AGENTS.md: "Natives are matched in eval_call BEFORE user
+        # function lookup"). Without this the emitter emitted mx_fn_len_gen for
+        # `len(a)` - a function the program never defined - and the compile failed
+        # with an implicit declaration. The substrate owns len's behaviour AND its
+        # two error texts, so routing it here keeps one implementation.
+        # `len` is a NATIVE, matched only when the callee is a plain Ident. A
+        # method call's callee is a DotAccess, so the NAME test has to be guarded
+        # by the SHAPE - otherwise `obj.len()` raised "only an Ident callee is in
+        # the B-2 subset" for a method that was perfectly legal.
+        if n.callee.kind == "Ident" && n.callee.name == "len" {
+            if len(args) == 1 {
+                return "mx_len_v(" + emit_expr(args[0]) + ")"
+            }
+            throwx "emit_expr: len takes exactly 1 argument, got " + len(args)
+        }
+        # Every function has the uniform signature (MxValue) -> MxValue, so a
+        # zero-arg call is the same call with mx_null(). No arity dispatch.
+        # The uniform (MxValue) -> MxValue signature means arity is carried by
+        # the ARGUMENT LIST, not by the signature: mx_call_list takes the values
+        # and the count. Case 19 is the first two-argument call in the corpus and
+        # interp.mx has 685 of them, so the single-argument form was the
+        # single-argument LIMITATION, not a shortcut.
+        # AND/OR SHORT-CIRCUIT as a C TERNARY, which is the only expression form
+        # that does not evaluate the untaken branch - see the note above.
+        return call_expr(n)
+    }
+    # The FOUR file builtins, as TOP-LEVEL arms of emit_expr.
+    #
+    # They were first written inside the `Call` arm, where they could never run:
+    # the parser gives a program writing `writex(p, s)` a node of kind Write, not
+    # a Call, so the Call arm never sees it and the arm's condition was dead code
+    # - which compiled, and then refused the very construct it was written for.
+    # A node kind that is its OWN kind needs its OWN arm at the same level as the
+    # arm for every other kind, which is the whole reason this emitter dispatches
+    # on a string rather than nesting.
+    # The FOUR file builtins. They are node KINDS of their own,, not Idents -
+        # the parser emits Read/Write/Append/Export/Input directly (parser.py:11-14,
+        # :354), so a program writing `readx(p)` never produces a Call node at all
+        # and the Ident arm above cannot see it. Routing them here - rather than
+    # giving them identifier names - is what the host's own shape forces.
+    if k == "Read" || k == "Write" || k == "Append" || k == "Export" {
+        return "mx_file_builtin(" + c_str(lowerx(k) + "x") + ", " +
+               file_args(n.args) + ")"
+    }
+    if k == "Input" {
+        # `inputx(p)` - DELEGATED, not transcribed: the host calls Python's
+        # input() (interpreter.py:520-524), so the substrate calls fgets. What is
+        # transcribed is the SUBSTRATE's part, which is the EOF text and the
+        # "only a string may be prompted" check. The prompt is optional in the
+        # parser, so a missing one is mx_null() rather than a missing argument.
+        let pr = "mx_null()"
+        if n.prompt != nullx {
+            pr = emit_expr(n.prompt)
+        }
+        return "mx_input(" + pr + ")"
+    }
+    if k == "TypeOf" {
+        return "mx_str(mx_type_name(" + emit_expr(n.value) + "))"
+    }
+    if k == "ArrayLiteral" {
+        # A FRESH array, built in the emitted statement rather than at parse time.
+        # mx_arr_new(0) then push, or a sized build - sized is simpler and emits
+        # no loop, which keeps the generated code readable. A compound literal
+        # would need a statement, so it is built as a call on a comma-free list.
+        let els = n.elements
+        let body = ""
+        let i = 0
+        while i < len(els) {
+            if i > 0 {
+                body = body + ", "
+            }
+            body = body + emit_expr(els[i])
+            i = i + 1
+        }
+        if len(els) == 0 {
+            return "mx_arr_value(mx_arr_new(0))"
+        }
+        # mx_arr_list fills a temporary and returns the array, so the emitted C
+        # stays a single expression (which is what keeps emit_expr total).
+        return "mx_arr_list(" + len(els) + ", " + body + ")"
+    }
+    if k == "UnaryOp" {
+        # Unary minus. The AST spells it as an operator node over a value, so
+        # this is a distinct kind from a BinOp - and it must be, because `-x` has
+        # no right operand and a BinOp emitter would demand one. The substrate
+        # does NOT fold this into the literal: a negated float and a negated int
+        # are different tags, and folding at emit time would lose that.
+        return "mx_unary(" + c_str(n.op) + ", " + emit_expr(n.value) + ")"
+    }
+    if k == "Super" {
+        # `super` reads the DEFINING class's PARENT from the current method's
+        # frame. The substrate keeps the receiver and the defining class in two
+        # globals saved and restored around every call (B-3.3), so the emitted
+        # code is a single call into it - and a `super` outside a method raises
+        # rather than reading a stale receiver.
+        return "mx_super_box()"
+    }
+    if k == "DotAccess" {
+        # `obj.field`. The substrate's mx_eval_dot carries the FOUR shapes and
+        # their four texts (module / instance / super / everything else), so the
+        # emitted code is one call and the ORDER - fields before methods, the
+        # I-M4 shadowing rule - lives in exactly one place on each side.
+        return "mx_dot(" + emit_expr(n.object) + ", " + c_str(n.field) + ")"
+    }
+    if k == "New" {
+        # `newx C(args)`. The class is RESOLVED BEFORE the arguments are
+        # evaluated (COMPILE_DESIGN 7.4), so the generated code evaluates the
+        # arguments into TEMPORARIES first and only then calls - because C
+        # evaluates function arguments in an unspecified order and the host's
+        # order is part of which error a program gets. The arguments are bound
+        # by position into one array, which is what mx_new takes.
+        let args = n.args
+        let i = 0
+        while i < len(args) {
+            i = i + 1
+        }
+        # Every argument, as an ARRAY plus a count - which is mx_new_multi's
+        # shape. The previous form passed the arguments to mx_new, whose signature
+        # carries ONE of them, so `newx T("abc", 3)` compiled to a C call with one
+        # argument too many and the whole program failed to build. A class whose
+        # init takes three parameters was simply not expressible.
+        #
+        # The array is a compound literal so the values are in scope for the call;
+        # and they are evaluated INSIDE it, left to right, which is the order the
+        # comment above promises.
+        return "mx_new_multi(" + c_str(n.class_name) + ", (MxValue[]){ " +
+               emit_expr_list(args) + " }, " + len(args) + ")"
+    }
+    if k == "Index" {
+        # mx_index carries the two READ error texts and the string case. The
+        # ORDER is the host's: array first, then index (interpreter.py:627-628),
+        # because C's argument evaluation order is unspecified - so the substrate
+        # takes them as two arguments and evaluates them itself.
+        return "mx_index(" + emit_expr(n.array) + ", " + emit_expr(n.index) + ")"
+    }
+    throwx "emit_expr: node kind '" + k + "' is outside the B-2 subset"
+    return "mx_null()"
+}
+
+func spaces(n) {
+    let s = ""
+    let i = 0
+    while i < n {
+        s = s + "  "
+        i = i + 1
+    }
+    return s
+}
+
+# ------------------------------------------------------------------
+# emit_stmt_list
+# ------------------------------------------------------------------
+# as_list(node_list) - a statement list, or an EMPTY list when the node does not
+# carry the field. Reading `n.body` from a node without one yields null, and
+# len(null) reports "len expects a string or array, got Node" - which names the
+# type and not the missing field, so the real cause is two steps away. An empty
+# list here would be silent though, so the callers that MATTER pass real fields
+# and this exists only for the optional ones (an `else` the source omitted).
+# top_uses_env - does the TEXT of main's statements mention an identifier?
+#
+# It asks about the emitted text rather than re-walking the AST: the flag is
+# computed after emission, and the text is the exact thing that decides whether
+# `env` is referenced. A `mx_eval_ident_gen(` appearing in the emitted source is
+# the definition of "this program reads a variable".
+func top_uses_env(top) {
+    return string.index_of(top, "mx_eval_ident_gen(") >= 0
+}
+
+func as_list(l) {
+    if l == nullx {
+        return []
+    }
+    return l
+}
+
+func emit_stmt_list(body, indent) {
+    let out = ""
+    let list = as_list(body)
+    let i = 0
+    while i < len(list) {
+        out = out + emit_stmt(list[i], indent)
+        i = i + 1
+    }
+    return out
+}
+
+func emit_stmt(n, indent) {
+    let pad = spaces(indent)
+    let k = n.kind
+
+    if k == "Let" {
+        # A TOP-LEVEL let is a GLOBAL. It must land in g_globals, not in main's
+        # local env, because a function's frame chains to g_globals and can never
+        # see main's env - that is the no-closures rule (INTERP_DESIGN 4.3).
+        # The first draft wrote both into `env`, and case 08 died with
+        # "Undefined variable 'hidden'" - the same family as B-1's invented
+        # closure, in the opposite direction: here the binding was invisible.
+        let target = ENV_NAME
+        if at_top {
+            target = "g_globals"
+        }
+        return pad + "env_define(" + target + ", " + c_str(n.name) + ", " +
+               emit_expr(n.value) + ");\n"
+    }
+    if k == "Assign" {
+        # Assign carries a nested `target` NODE (parser.mx:188-195), not a name
+        # string - so it goes through emit_assign_target rather than assuming a
+        # field. The first draft read n.name and produced "Field/method 'name'
+        # not found on Node".
+        return pad + emit_assign_target(n.target, indent) + emit_expr(n.value) + ");\n"
+    }
+    if k == "ForIn" {
+        # `for x in xs { }` and `for i, v in xs { }`.
+        #
+        # THE ITERABLE IS EVALUATED ONCE, into a block-scoped local. That is the
+        # host's rule (interpreter.py:387) and it is observable: re-evaluating per
+        # iteration would walk a mutating collection, and would call a function
+        # once per element instead of once.
+        #
+        # The element is read through mx_index, so a STRING iterates by BYTE -
+        # D-ARR1, inherited from the substrate rather than chosen here, exactly
+        # as on the AST side. A second answer to "how do I get element i" would
+        # be a second definition of that divergence.
+        #
+        # The two bindings are INDEX FIRST, ELEMENT SECOND, which reads backwards
+        # and is what the host does. `n.var2` is null for the one-binding form,
+        # and the `if` tests exactly that.
+        #
+        # break/continue use the SAME catch-frame shape as While below, because
+        # the rule is the same: this loop's frame is on top, so a break from
+        # anywhere in the body - including out of a tryx - lands here, and a
+        # signal this loop does not own is handed downward.
+        CATCH_SEQ = CATCH_SEQ + 1
+        let itn = "mx_forin_" + CATCH_SEQ
+        let wname = "mx_on_try_path_" + CATCH_SEQ
+        let out = pad + "{\n"
+        # volatile on all three: the body runs under mx_push_catch/mx_try, and
+        # every one of these is read after the longjmp that a break produces.
+        # -Wclobbered is right (C99 7.13.2.1p3) and the fix is the same one the
+        # N_LOOP substrate arm needed: without volatile the compiler may keep the
+        # iterable or the bound in a register longjmp never restored, and the
+        # loop then walks a freed value. G6 refuses the warning, not the code.
+        out = out + spaces(indent + 1) + "MxValue volatile " + itn + " = " +
+              emit_expr(n.iterable) + ";\n"
+        # The TYPE CHECK FIRST, so the failure is forin's message and not
+        # mx_len's. `for x in 5` says "for...in expects an array or string" on the
+        # host, and the two texts differ - a golden compares bytes.
+        out = out + spaces(indent + 1) + "if (" + itn + ".tag != MX_ARR && " + itn +
+              ".tag != MX_STR) mx_raise(\"for...in expects an array or string\");\n"
+        out = out + spaces(indent + 1) + "size_t volatile " + itn + "_n = (size_t)mx_len(" + itn + ");\n"
+        out = out + spaces(indent + 1) + "size_t volatile " + itn + "_i;\n"
+        out = out + spaces(indent + 1) + "for (" + itn + "_i = 0; " + itn +
+              "_i < " + itn + "_n; " + itn + "_i++) {\n"
+        out = out + spaces(indent + 2) + "/* a FRESH env per iteration, so a body\n"
+        out = out + spaces(indent + 3) + " * assignment does not leak into the next\n"
+        out = out + spaces(indent + 3) + " * one - exec_forin's own arrangement. */\n"
+        # The OUTER env is captured under its OWN name first. Writing
+        # `MxEnv *env = env_new(env)` is a C scoping trap: in an initializer the
+        # name already refers to the variable being declared, so env_new() is
+        # handed the NEW env - uninitialized - and the first loop iteration
+        # dereferences whatever was on the stack. It segfaulted inside the first
+        # function that contained a for-in, and only under -O2, which is the
+        # worst possible signature for a bug like this.
+        out = out + spaces(indent + 2) + "MxEnv *volatile " + itn + "_outer = " + ENV_NAME + ";\n"
+        out = out + spaces(indent + 2) + "MxEnv *volatile env = env_new(" + itn + "_outer);\n"
+        # ONE binding: the ELEMENT. TWO bindings: `var` is the INDEX and `var2`
+        # the ELEMENT - which reads backwards and is what exec_forin does
+        # (interpreter.py:394-397). The first version bound both to the element
+        # and `for i, v in xs` then multiplied the VALUE by ten.
+        if n.var2 == nullx {
+            out = out + spaces(indent + 2) + "env_define(env, " + c_str(n.var) +
+                  ", mx_index(" + itn + ", mx_int((int64_t)" + itn + "_i)));\n"
+        } else {
+            out = out + spaces(indent + 2) + "env_define(env, " + c_str(n.var) +
+                  ", mx_int((int64_t)" + itn + "_i));\n"
+            out = out + spaces(indent + 2) + "env_define(env, " + c_str(n.var2) +
+                  ", mx_index(" + itn + ", mx_int((int64_t)" + itn + "_i)));\n"
+        }
+        out = out + spaces(indent + 2) + "volatile int " + wname +
+              " = mx_push_catch() ? 1 : 0;\n"
+        out = out + spaces(indent + 2) + "if (" + wname + ") {\n"
+        out = out + spaces(indent + 3) + "g_has_catch = 1;\n"
+        out = out + emit_stmt_list(as_list(n.body), indent + 3)
+        out = out + spaces(indent + 3) + "mx_pop_catch();\n"
+        out = out + spaces(indent + 2) + "} else {\n"
+        out = out + spaces(indent + 3) + "mx_pop_catch();\n"
+        out = out + spaces(indent + 3) + "if (mx_caught_kind() == K_BREAK) { mx_clear_signal(); break; }\n"
+        out = out + spaces(indent + 3) + "if (mx_caught_kind() == K_CONTINUE) { mx_clear_signal(); continue; }\n"
+        out = out + spaces(indent + 3) + "mx_raise_to(mx_caught_kind());\n"
+        out = out + spaces(indent + 2) + "}\n"
+        out = out + spaces(indent + 1) + "}\n"
+        out = out + pad + "}\n"
+        return out
+    }
+    if k == "Print" {
+        return pad + "mx_print_gen" + "(" + emit_expr(n.value) + ");\n"
+    }
+    if k == "ExprStmt" {
+        return pad + "(void)(" + emit_expr(n.expr) + ");\n"
+    }
+    if k == "If" {
+        # `if cond { } else { }`, with an else-if as a NESTED N_IF in the else
+        # slot - which is the host's own shape (parser.py:178), so a chain of any
+        # depth costs one emitted else block per link and needs no node kind.
+        let out = pad + "if (mx_is_truthy(" + emit_expr(n.condition) + ")) {\n"
+        out = out + emit_stmt_list(as_list(n.then), indent + 1)
+        if len(as_list(n.else_b)) > 0 {
+            out = out + pad + "} else {\n"
+            # An `else if` arrives as a ONE-ELEMENT LIST holding an N_IF, which is
+            # the host's own shape (parser.py:178 / parser.mx:700). emit_stmt_list
+            # handles both the plain-block and the else-if case with no special
+            # case at all, because the else-if IS a statement in a list.
+            out = out + emit_stmt_list(n.else_b, indent + 1)
+        }
+        out = out + pad + "}\n"
+        return out
+    }
+    if k == "While" {
+        # THE LOOP. The catch frame is pushed INSIDE the body block, so a break
+        # or continue from anywhere below - through any number of ifs and tryx
+        # blocks - lands on the loop's own frame, which is the innermost live
+        # catcher at that moment. That IS the innermost-absorption rule; it is not
+        # a check the emitter writes, it is a consequence of where the frame goes.
+        #
+        # The condition is emitted OUTSIDE the pushed frame, matching
+        # interpreter.py:319 - a throw raised by the condition must not be
+        # absorbed by this loop.
+        let out = pad + "for (;;) {\n"
+        out = out + spaces(indent + 1) + "if (!mx_is_truthy(" + emit_expr(n.condition) + ")) break;\n"
+        CATCH_SEQ = CATCH_SEQ + 1
+        let wname = "mx_on_try_path_" + CATCH_SEQ
+        out = out + spaces(indent + 1) + "volatile int " + wname +
+              " = mx_push_catch() ? 1 : 0;\n"
+        out = out + spaces(indent + 1) + "if (" + wname + ") {\n"
+        out = out + spaces(indent + 2) + "g_has_catch = 1;\n"
+        out = out + emit_stmt_list(as_list(n.body), indent + 2)
+        out = out + spaces(indent + 2) + "mx_pop_catch();\n"
+        out = out + spaces(indent + 1) + "} else {\n"
+        out = out + spaces(indent + 2) + "mx_pop_catch();\n"
+        out = out + spaces(indent + 2) + "if (mx_caught_kind() == K_BREAK) { mx_clear_signal(); break; }\n"
+        out = out + spaces(indent + 2) + "if (mx_caught_kind() == K_CONTINUE) { mx_clear_signal(); continue; }\n"
+        out = out + spaces(indent + 2) + "/* not ours - hand it to the next catcher down */\n"
+        out = out + spaces(indent + 2) + "mx_raise_to(mx_caught_kind());\n"
+        out = out + spaces(indent + 1) + "}\n"
+        out = out + pad + "}\n"
+        return out
+    }
+    if k == "Break" {
+        return pad + "mx_raise_to(K_BREAK);\n"
+    }
+    if k == "Continue" {
+        return pad + "mx_raise_to(K_CONTINUE);\n"
+    }
+    if k == "ClassDef" {
+        # FILE-SCOPE text, collected rather than returned: a class's tables and
+        # functions must sit at file scope, and emit_stmt_list would place this
+        # inside main(), where C rejects `static` definitions and non-constant
+        # static initialisers. The REGISTRARS list is what main() calls BEFORE
+        # executing a statement, so a class's fields exist before any `newx`.
+        # A class REGISTERS AT RUN TIME (COMPILE_DESIGN 8.2). The emitted code
+        # carries the class as a static descriptor - name, parent, fields and
+        # methods - and main() calls mx_register_class on it before executing a
+        # statement. A compiler emitting a VTABLE instead would be faster and
+        # wrong: self.classes is mutated while the program runs (handle_import
+        # adds to it), a parent name is resolved at CALL time, and
+        # class_chain validates cycles at call time. Emitting the descriptor and
+        # registering it keeps all three, and keeps the six class error texts
+        # reachable from a guest.
+        let out = ""
+        let mn = len(n.methods)
+        # the fields, as a static array of (name, initialiser expression)
+        out = out + "static const char *mx_flds_" + n.name + "[] = {"
+        let fi = 0
+        while fi < len(n.fields) {
+            if fi > 0 { out = out + ", " }
+            out = out + c_str(n.fields[fi].name)
+            fi = fi + 1
+        }
+        out = out + "};\n"
+        # The VALUES are emitted as STATEMENTS, not as a static initialiser.
+        # `let f = make()` is legal MountX and C forbids a call in a static
+        # initialiser, so a `static MxValue ... = { mx_int(4), ... }` would fail
+        # to compile the moment a field's value were computed. The statements go
+        # into a REGISTER function that main() calls before executing anything,
+        # which also puts the evaluation in an ENV - a field's value may read a
+        # variable, and a static initialiser has none.
+        out = out + "static MxValue mx_fldv_" + n.name + "[] = {"
+        fi = 0
+        while fi < len(n.fields) {
+            if fi > 0 { out = out + ", " }
+            out = out + "(MxValue){0}"   # a CONSTANT initialiser: mx_null() is a call,
+                                       # and C forbids one here. BSS zeroes the
+                                       # slot and the register function fills it.
+            fi = fi + 1
+        }
+        out = out + "};\n"
+        out = out + "static void mx_reg_" + n.name + "(void) {\n"
+        fi = 0
+        while fi < len(n.fields) {
+            out = out + "    mx_fldv_" + n.name + "[" + fi + "] = " +
+                   emit_expr(n.fields[fi].value) + ";\n"
+            fi = fi + 1
+        }
+        out = out + "}\n"
+        # the methods: name, arity, and the generated function
+        if n.init != nullx {
+            out = out + "static MxValue " +
+                  fn_name("fn_" + n.name + "_init") +
+                  "(MxValue p0_, MxValue p1_, MxValue p2_, MxValue p3_, MxValue p4_, MxValue p5_, int mx_arity_);\n"
+        }
+        let mi2 = 0
+        while mi2 < mn {
+            out = out + "static MxValue " +
+                  fn_name("fn_" + n.name + "_" + n.methods[mi2].name) +
+                  "(MxValue p0_, MxValue p1_, MxValue p2_, MxValue p3_, MxValue p4_, MxValue p5_, int mx_arity_);\n"
+            mi2 = mi2 + 1
+        }
+        out = out + "static MxFnGen mx_fwd_" + n.name + "[] = {"
+        mi = 0
+        while mi < mn {
+            if mi > 0 { out = out + ", " }
+            out = out + fn_name("fn_" + n.name + "_" + n.methods[mi].name)
+            mi = mi + 1
+        }
+        out = out + "};\n"
+        out = out + "static const char *mx_mths_" + n.name + "[] = {"
+        let mi = 0
+        while mi < mn {
+            if mi > 0 { out = out + ", " }
+            out = out + c_str(n.methods[mi].name)
+            mi = mi + 1
+        }
+        out = out + "};\n"
+        out = out + "static MxClassDesc mx_desc_" + n.name + " = {\n"
+        out = out + "    " + c_str(n.name) + ",\n"
+        let parent = "\"\""
+        if n.parent != nullx { parent = c_str(n.parent) }
+        out = out + "    " + parent + ",\n"
+        out = out + "    mx_flds_" + n.name + ", mx_fldv_" + n.name + ", " +
+               len(n.fields) + ",\n"
+        out = out + "    mx_mths_" + n.name + ", mx_fwd_" + n.name + ", " + mn +
+               ",\n"
+        # init_fn, init_arity, mod_env, defined - the last FOUR fields of
+        # MxClassDesc. init is in its OWN slot (AGENTS.md's invariant), so it is
+        # never one of the method_names entries: an inherited init applies
+        # because mx_new_multi walks UP for the first non-null init_fn, and a
+        # class that defines none leaves this null.
+        let init_fn = "0"
+        let init_arity = "0"
+        if n.init != nullx {
+            # the PROTOTYPE goes up with the method prototypes (see below), not
+            # here: a `static` declaration cannot appear between two initialiser
+            # lines, which is what emitting it in place produced.
+            init_fn = fn_name("fn_" + n.name + "_init")
+            init_arity = "" + len(n.init.params)
+        }
+        out = out + "    " + init_fn + ", " + init_arity +
+               ", 0, 0\n};\n"
+        out = out + "static MxClassDesc *mx_cls_" + n.name + " = &mx_desc_" +
+               n.name + ";\n"
+        # REGISTER: evaluate the field initialisers (in an env), then join the
+        # registry. This runs BEFORE any statement, so a class's fields exist by
+        # the time a `newx` can reach for them - and running it at run time is
+        # what COMPILE_DESIGN 8.2 requires: the registry is mutable, so a class
+        # defined later still registers.
+        out = out + "static void mx_register_" + n.name + "(void) {\n"
+        out = out + "    mx_reg_" + n.name + "();\n"
+        out = out + "    mx_cls_" + n.name + "->method_fns = mx_fwd_" + n.name +
+               ";\n"
+        out = out + "    mx_register_class(mx_cls_" + n.name + ");\n"
+        out = out + "}\n"
+        # the METHODS themselves, as ordinary generated functions
+        mi = 0
+        while mi < mn {
+            out = out + emit_method(n, n.methods[mi])
+            mi = mi + 1
+        }
+        # and the INIT, which is a method that is NOT in the method list - the
+        # invariant (AGENTS.md: init is NOT in methods), kept here rather than by
+        # appending it to methods and excluding it later. Two places that know
+        # what an init is would be two places to forget.
+        if n.init != nullx {
+            out = out + emit_method(n, n.init)
+        }
+        CLASSES_TEXT = CLASSES_TEXT + out
+        CLASS_REGISTRARS = CLASS_REGISTRARS + "    mx_register_" + n.name + "();\n"
+        return ""
+    }
+    if k == "Import" {
+        # `importx name` is a STATEMENT whose effect is to bind the module
+        # object under `name` in the program's globals - which is what makes
+        # `name.bump(1)` resolve (COMPILE_DESIGN 8.4).
+        #
+        # The walk itself is NOT emitted: it is a FILESYSTEM search with a
+        # four-base order, a dedup rule and a message that lists every path it
+        # tried. Re-emitting that in C per program would be a second
+        # implementation of a rule the substrate already holds, and the two
+        # would drift on the first base that changed. So the emitted code calls
+        # mx_import_module and the SUBSTRATE walks - and mx_import_module is the
+        # SAME mx_load_module the interpreter path uses, which is why a B-2
+        # binary is built with MX_BOTH (a module imported at run time is
+        # evaluated by the AST half).
+        #
+        # The statement's value is the module object, so it is bound rather than
+        # discarded: a program that imports and never names the module still
+        # works, and one that does name it gets the box the DotAccess expects.
+        return pad + "env_define(" + ENV_NAME + ", " + c_str(n.name) +
+               ", mx_import_module(" + c_str(n.name) + "));\n"
+    }
+    if k == "Throw" {
+        return pad + "mx_throw(" + emit_expr(n.value) + ");\n"
+    }
+    if k == "Return" {
+        if has_value(n) {
+            return pad + "{ MxValue _ret_val_ = (" + emit_expr(n.value) +
+                   "); g_catch_sp = mx_saved_catch_sp; return _ret_val_; }\n"
+        }
+        return pad + "{ g_catch_sp = mx_saved_catch_sp; return mx_null(); }\n"
+    }
+    if k == "TryCatch" {
+        return emit_trycatch(n, indent)
+    }
+    if k == "FuncDef" {
+        return emit_funcdef(n, indent)
+    }
+# ------------------------------------------------------------------
+# emit_trycatch - the interesting one.
+#
+# The emitted code uses the substrate's mx_try macro, which wraps the ONLY
+# setjmp. CB-G's rule is therefore structural: the try body is a macro
+# argument, so the compiler sees no local across a longjmp boundary that it
+# could clobber - and -Wclobbered is run on the OUTPUT, which is the stricter
+# test the brief asks for.
+#
+# The catch body MUST run before mx_clear_signal(), because the body's `e`
+# reads g_sig.msg. mini.c got this wrong first (B-1 finding F-2 #7) and the
+# corpus caught it, so the order is commented here to stop it regressing.
+# ------------------------------------------------------------------
+
+# ------------------------------------------------------------------
+# emit_funcdef - a nested C function with the corpus's one-parameter shape.
+# ------------------------------------------------------------------
+    throwx "emit_stmt: node kind '" + k + "' is outside the B-2 subset"
+    return ""
+}
+
+# parser.mx sets a key ONLY when parser.py does, so "has a value" is the same
+# test the host makes with node.get("value") - and `Return` with no expression
+# is the corpus's only case of it.
+func has_value(n) {
+    return n.value != nullx
+}
+
+# ------------------------------------------------------------------
+# emit_trycatch - direct emission, no AST round-trip.
+#
+# The emitted shape is the canonical setjmp idiom, which is what CB-G is about:
+#
+#     if (mx_try_enter()) {  <try body>   mx_try_ok(); }
+#     else                 {  <catch body> mx_try_done(); }
+#
+# Two orderings are load-bearing and both were got wrong in mini.c first
+# (B-1 finding F-2 #7): the catch variable must be bound from the signal BEFORE
+# the body runs, and the signal must NOT be cleared until the body has read it.
+# ------------------------------------------------------------------
+func emit_trycatch(n, indent) {
+    let pad = spaces(indent)
+    let in1 = spaces(indent + 1)
+    # setjmp is emitted HERE, in the frame that catches - never behind a helper.
+    # mini.c's mx_try_enter/ok/done were removed for exactly this reason: setjmp
+    # records the CALLER's frame, a helper that returns leaves that frame dead,
+    # and the longjmp then kills the process silently (see mini.c's comment).
+    let saved_top = at_top
+    at_top = false
+    # The tryx uses the substrate's OWN mx_try macro, exactly as the evaluator
+    # does. That is the point of sharing one error channel: the emitted code and
+    # mini.c push and pop the same catch stack, so a nested catcher in generated
+    # code interleaves correctly with one in the substrate.
+    #
+    # mx_try takes a single expression, so the try BODY is wrapped in a
+    # comma expression of the statements. Each statement ends in `;`, which is
+    # legal between commas in C - it parses, and it keeps emit_stmt_list
+    # unchanged for every other construct.
+    # The emitted tryx calls setjmp DIRECTLY and pushes the frame itself, exactly
+    # as mini.c's evaluator does. Going through the mx_try macro instead would
+    # not work: the macro takes the body as an ARGUMENT, and a tryx body is an
+    # arbitrary number of statements, which is exactly the mismatch that made
+    # B-2's mx_try_enter unsound in the first place (a setjmp in a helper records
+    # the wrong frame). Here the setjmp is IN the frame that catches.
+    #
+    # `volatile` on mx_hit_ is not decoration: the C standard says an automatic
+    # whose value changed between setjmp and longjmp is otherwise indeterminate,
+    # and -Wclobbered - which this project compiles with on purpose - is what
+    # makes that rule visible rather than folklore.
+    CATCH_SEQ = CATCH_SEQ + 1
+    let vname = "mx_on_try_path_" + CATCH_SEQ
+    let out = pad + "volatile int " + vname + " = mx_push_catch() ? 1 : 0;\n"
+    out = out + pad + "if (" + vname + ") {\n"
+    out = out + in1 + "g_has_catch = 1;\n"
+    out = out + emit_stmt_list(n.try_body, indent + 1)
+    out = out + in1 + "mx_pop_catch();\n"
+    out = out + pad + "} else {\n"
+    out = out + in1 + "mx_pop_catch();\n"
+    out = out + in1 + "/* a tryx absorbs THROW and ERROR and NOTHING ELSE: a break or a\n"
+    out = out + in1 + " * continue belongs to the enclosing loop, and a return to the enclosing\n"
+    out = out + in1 + " * function. Both are handed to the next catcher down (interpreter.py:357-360). */\n"
+    out = out + in1 + "if (mx_caught_kind() != K_THROW && mx_caught_kind() != K_ERROR) {\n"
+    out = out + in1 + in1 + "mx_rethrow();\n"
+    out = out + in1 + "}\n"
+    out = out + in1 + "MxEnv *cenv = env_new(env);\n"
+    out = out + in1 + "MxValue cv_ = (mx_caught_kind() == K_THROW) ? mx_caught_value()\n"
+    out = out + in1 + "                                           : mx_str(mx_caught_msg());\n"
+    out = out + in1 + "env_define(cenv, " + c_str(n.catch_var) + ", cv_);\n"
+    # The catch body runs in cenv, so a bare Ident inside it must resolve THERE
+    # - the caught variable lives in cenv, not in the enclosing env. The first
+    # draft emitted mx_eval_ident_gen("e", env), which reads the WRONG env: `e`
+    # is not there, and case 05 printed no "caught:" line at all.
+    let saved = ENV_NAME
+    ENV_NAME = "cenv"
+    out = out + emit_stmt_list(n.catch_body, indent + 1)
+    ENV_NAME = saved
+    at_top = saved_top
+    out = out + in1 + "mx_clear_signal();\n"
+    out = out + pad + "}\n"
+    return out
+}
+
+# ------------------------------------------------------------------
+# emit_funcdef - a real C function.
+#
+# MountX has NO closures (INTERP_DESIGN 4.3, line 378): a function's parent env
+# is the GLOBAL env, never its caller's. That is exactly what lets a function
+# become a plain C function - the one thing a C function cannot do is capture a
+# caller's locals, and MountX functions do not capture them either.
+#
+# Every function gets the SAME signature, (MxValue) -> MxValue, and a zero-arg
+# call passes mx_null(). Uniform arity means no dispatch table and no arity
+# bookkeeping in the emitter, which is where a transpiler usually grows bugs.
+# ------------------------------------------------------------------
+# param_name(p) - a parameter's NAME.
+#
+# parser.mx stores `this.eat_is("IDENT").lexeme` (parser.mx:762), and the lexeme
+# is a STRING - so the plain `.lexeme` reading was right for the parser's own
+# output and wrong for the dumper's Token, depending on which path built the node.
+# Rather than pick one and be right by luck, this accepts either shape and takes
+# the name. The failure it replaces named a TYPE ("Cannot access field 'lexeme'
+# on string") rather than the construct, so the next reader had no handle on it.
+func param_name(p) {
+    if typeofx(p) == "string" {
+        return p
+    }
+    return p.lexeme
+}
+
+# emit_method - a class method as a generated function.
+#
+# It differs from a free function in ONE way: `this` must be bound. The
+# generated frame's first slot is the RECEIVER when the call came through
+# mx_call_list's `recv`, so the prologue defines "this" from it and the
+# parameters from the remaining slots. Everything else - the signature, the
+# catch frame, the return - is the same code as a free function, which is why this
+# reuses emit_funcdef rather than having a second emitter that could drift.
+func emit_method(cls, m) {
+    let out = ""
+    let name = fn_name("fn_" + cls.name + "_" + m.name)
+    let params = m.params
+    let slots = ["p0_", "p1_", "p2_", "p3_", "p4_", "p5_"]
+    out = out + "static MxValue " + name +
+          "(MxValue p0_, MxValue p1_, MxValue p2_, MxValue p3_, MxValue p4_, MxValue p5_, int mx_arity_) {\n"
+    out = out + "    (void)mx_arity_;\n"
+    let q = 1
+    while q < 6 {
+        out = out + "    (void)" + slots[q] + ";\n"
+        q = q + 1
+    }
+    out = out + "    int mx_saved_catch_sp = g_catch_sp;\n"
+    out = out + "    MxEnv *env = env_new(g_globals);\n"
+    # `this` is the RECEIVER. mx_call_list passes it separately from the
+    # arguments, and binding it here - rather than looking it up - is what makes
+    # it a receiver and not a variable a program can rebind.
+    out = out + "    env_define(env, \"this\", p0_);\n"
+    let b = 0
+    while b < len(params) && b < 5 {
+        out = out + "    env_define(env, " + c_str(params[b]) + ", " +
+              slots[b + 1] + ");\n"
+        b = b + 1
+    }
+    out = out + emit_stmt_list(m.body, 1)
+    out = out + "    g_catch_sp = mx_saved_catch_sp;\n"
+    out = out + "    return mx_null();\n"
+    out = out + "}\n"
+    return out
+}
+
+func emit_funcdef(n, indent) {
+    let pad = spaces(indent)
+    let params = n.params
+    let name = fn_name("fn_" + n.name)
+    at_top = false
+    let out = pad + "static MxValue " + name + "(MxValue p0_, MxValue p1_, MxValue p2_, MxValue p3_, MxValue p4_, MxValue p5_, int mx_arity_);\n"
+    out = out + pad + "static MxValue " + name + "(MxValue p0_, MxValue p1_, MxValue p2_, MxValue p3_, MxValue p4_, MxValue p5_, int mx_arity_) {\n"
+    # Every function gets the same (MxValue) -> MxValue signature, so a zero-arg
+    # call is just a call with mx_null(). A function that takes nothing then
+    # leaves p0_ unused, -Wall reports it, and G6's target is ZERO warnings in
+    # the OUTPUT - so it is discarded explicitly, only when genuinely unused.
+    # The arity argument is part of the uniform signature (so one calling
+    # convention serves every arity) and a function with a fixed parameter list
+    # does not READ it. Discarded explicitly: an unused parameter is a -Wall
+    # warning, and G6's target is zero warnings in the OUTPUT.
+    out = out + spaces(indent + 1) + "(void)mx_arity_;\n"
+    # Every parameter slot the function does not declare is discarded EXPLICITLY.
+    # The uniform signature is what makes one call convention serve every arity,
+    # and the price is unused parameters - which -Wall reports in the OUTPUT, and
+    # G6 refuses. Casting them away is not silencing: the parameters genuinely
+    # are unused, and the substrate's MX_MAX_PARAMS cap is documented above.
+    if len(params) < 6 {
+        let names = ["p0_", "p1_", "p2_", "p3_", "p4_", "p5_"]
+        let q = len(params)
+        while q < 6 {
+            out = out + spaces(indent + 1) + "(void)" + names[q] + ";\n"
+            q = q + 1
+        }
+    }
+    out = out + spaces(indent + 1) + "int mx_saved_catch_sp = g_catch_sp;\n"
+    # A function frame needs `env` only when its body names it, and a function
+    # that only throws a literal does not (case 10's level3). Emitting it
+    # anyway is an unused-variable warning, which G6 refuses - so the SAME
+    # exact test main uses is applied here rather than a guess.
+    if body_names_env(n.body) || len(params) >= 1 {
+        out = out + spaces(indent + 1) + "MxEnv *env = env_new(g_globals);\n"
+    }
+    # Parameters are bound BY POSITION, and the NAMES live in this frame - the
+    # substrate never sees them, which is why one calling convention serves every
+    # function in every generated program.
+    #
+    # `params[b]` is a lexer's Token, not a string (parser.mx:763 stores
+    # `this.eat_is("IDENT").lexeme`), so the NAME is `.lexeme`. Reading the Token
+    # itself would bind every parameter to its address, and the earlier prologue
+    # emitted only params[0] - so case 19's `first_greater_than(xs, limit)` had no
+    # `limit` at all. -Wall reported that as `p1_ unused` and the gate as a compile
+    # failure: two symptoms, one missing line.
+    let slots = ["p0_", "p1_", "p2_", "p3_", "p4_", "p5_"]
+    let b = 0
+    while b < len(params) && b < 6 {
+        out = out + spaces(indent + 1) + "env_define(env, " +
+              c_str(param_name(params[b])) + ", " + slots[b] + ");\n"
+        b = b + 1
+    }
+    out = out + emit_stmt_list(n.body, indent + 1)
+    out = out + spaces(indent + 1) + "g_catch_sp = mx_saved_catch_sp;\n"
+    out = out + spaces(indent + 1) + "return mx_null();\n"
+    out = out + pad + "}\n"
+    return out
+}
+
+# ------------------------------------------------------------------
+# The prologue: what every emitted file needs before its own code.
+# ------------------------------------------------------------------
+func emit_prologue() {
+    let o = "/* GENERATED by selfhost/b2/compiler.mx - do not edit.\n"
+    o = o + " * Source: " + SOURCE + "\n"
+    o = o + " *\n"
+    o = o + " * Naive direct transcription: one C statement per MountX statement,\n"
+    o = o + " * no optimisation, no constant folding. Correctness first - see\n"
+    o = o + " * B-2 KICKOFF §5.\n"
+    o = o + " *\n"
+    o = o + " * The error channel is the substrate's mx_try_enter/mx_try_ok/mx_try_done\n"
+    o = o + " * trio, i.e. the canonical setjmp shape. This file is compiled with\n"
+    o = o + " * -Wclobbered as well as -Wall -Wextra, because the emitted code is where\n"
+    o = o + " * CB-G's clobbered-locals rule actually bites.\n"
+    o = o + " */\n"
+    o = o + "#include \"mini.h\"\n"
+    o = o + "\n"
+    o = o + "/* forward declarations, so a function may be called before it is defined */\n"
+    return o
+}
+
+func emit_epilogue(needs_env) {
+    let o = "\nint main(int argc, char **argv) {\n"
+    o = o + "    int mx_saved_catch_sp = g_catch_sp;\n"
+    o = o + "    (void)argc; (void)argv;\n"
+    o = o + "#ifdef _WIN32\n"
+    o = o + "    SetConsoleOutputCP(CP_UTF8);\n"
+    o = o + "#endif\n"
+    o = o + "    if (argc > 1 && (strcmp(argv[1], \"--version\") == 0 || strcmp(argv[1], \"-v\") == 0)) {\n"
+    o = o + "        printf(\"MountX 1.1.0  (c) 2026 Ziad Mohsin\\n\");\n"
+    o = o + "        return 0;\n"
+    o = o + "    }\n"
+    o = o + "    /* g_globals IS the parent of every call frame (COMPILE_DESIGN section 2.3\n"
+    o = o + "     * and INTERP_DESIGN 4.3): a callee sees globals, never its caller. Case 09\n"
+    o = o + "     * is the case that proves it, and it caught exactly this mistake in B-1. */\n"
+    # mx_set_argv0 FIRST: the import walk's last base is the running binary's own
+    # directory (D-1's shape), and it comes from argv[0]. A generated program
+    # cannot skip this and still resolve an import relative to itself.
+    # mx_set_argv_full, not mx_set_argv0: a generated program that IS an
+    # interpreter needs its own ARGV, because its bootstrap's first act is
+    # `bootstrap_main(sys_args())` and sys_args() reads argv+1. Setting only
+    # argv[0] gave the crown binary an empty argument list, so the bootstrap took
+    # its "no guest program specified" branch and the crown run would have looked
+    # like a bootstrap bug rather than a missing two-word call.
+    o = o + "    mx_set_argv_full(argv, argc);\n"
+    # SAFETY NETS, and the generated main is a DIFFERENT function from the AST
+    # half's - so a net installed only there would protect only half the ways a
+    # program can start. This line is why a compiled program cannot freeze the
+    # machine any more than the interpreted one can.
+    o = o + "    mx_install_safety_nets();\n"
+    # The SECOND import base is the SOURCE's directory, not the binary's - see
+    # mx_set_source. It is emitted as the path translate() was GIVEN, so a binary
+    # built once resolves imports relative to the program it was made from, which
+    # is D-1's shape.
+    o = o + "    mx_set_source(" + c_str(SOURCE) + ");\n"
+    o = o + "    g_globals = env_new(NULL);\n"
+    o = o + FN_REGS
+    o = o + "    /* REGISTER the classes BEFORE any statement runs, so a `newx`\n"
+    o = o + "     * in the first statement already finds its class and its field\n"
+    o = o + "     * values. This is COMPILE_DESIGN 8.2's point in one line: the\n"
+    o = o + "     * registry is a RUN-TIME thing, and a class defined after a\n"
+    o = o + "     * function that mentions it was already COMPILED still works. */\n"
+    o = o + CLASS_REGISTRARS
+    if needs_env {
+        o = o + "    MxEnv *env = env_new(g_globals);\n"
+    } else {
+        # No Ident in the program, so no `env` local: an unused one is a
+        # -Wall warning in the OUTPUT, which G6 refuses.
+        o = o + "    /* this program reads no variable, so no env local is emitted */\n"
+    }
+    o = o + TOPLEVEL
+    o = o + "    fflush(stdout);\n"
+    o = o + "    return 0;\n"
+    o = o + "}\n"
+    return o
+}
+
+# ------------------------------------------------------------------
+# translate(src, name) - the whole file, one entry point.
+#
+# Two passes. The FIRST collects the function prototypes and emits the
+# definitions; the SECOND emits the top-level statements into main(). Without
+# the split, a function defined after its call site would not compile - the
+# corpus happens to define before calling (cases 08 and 10), but relying on that
+# would be a bug waiting for the next case.
+# ------------------------------------------------------------------
+# wrap(src) - main.py's auto-wrap (main.py:31-32): a program whose first token
+# is not MOUNTX gets one. Only a text-level test is possible here, and it is
+# exact enough: mountx must be the FIRST thing in the file, since a comment or
+# a blank line before it would mean the header is absent anyway. Wrapping an
+# already-wrapped file is harmless - parse_src sees the header and stops.
+func wrap(src) {
+    let lines = string.split(src, "\n")
+    let i = 0
+    while i < len(lines) {
+        let t = string.trim(lines[i])
+        if t == "" {
+            i = i + 1
+        } else if string.starts_with(t, "#") {
+            i = i + 1
+        } else {
+            break
+        }
+    }
+    if i < len(lines) && string.trim(lines[i]) == "mountx" {
+        return src
+    }
+    return "mountx\n" + src + "\nunmountx\n"
+}
+
+func translate(src, name) {
+    SOURCE = name
+    CATCH_SEQ = 0
+    FN_REGS = ""
+    CLASSES_TEXT = ""
+    CLASS_REGISTRARS = ""
+    let ast = parser.parse_src(wrap(src))
+    # The wrap matters, and it is easy to assume it is not needed: all 12
+    # b1/corpus cases carry an explicit `mountx` header, so the compiler never
+    # exercised this path until B-3 was handed interp.mx - which has NO header,
+    # because main.py auto-wraps every program it loads (main.py:31-32). Feeding
+    # a headerless file straight to parse_src dies with "Program must start
+    # with mountx", naming a line INSIDE the file rather than the missing
+    # header. The emitter must do what main.py does, not what the corpus does.
+    let body = ast.body
+
+    let protos = ""
+    let defs = ""
+    let top = ""
+    let i = 0
+    let list = as_list(body)
+    while i < len(list) {
+        let st = list[i]
+        if st.kind == "FuncDef" {
+            protos = protos + "static MxValue " + fn_name("fn_" + st.name) + "(MxValue p0_, MxValue p1_, MxValue p2_, MxValue p3_, MxValue p4_, MxValue p5_, int mx_arity_);\n"
+            defs = defs + emit_funcdef(st, 0)
+            # REGISTER it. mx_call_list takes a NAME (the emitted call is a
+            # string literal), so the runtime needs the name -> function mapping,
+            # and it must be built at RUN time from the definitions themselves -
+            # which is also where "last definition wins" for a duplicate name
+            # comes from, without the emitter having to notice duplicates.
+            FN_REGS = FN_REGS + "    mx_register_genfn(" + c_str(st.name) + ", " +
+                      fn_name("fn_" + st.name) + ");\n"
+        } else {
+            # at_top distinguishes main's statements (where a let is a GLOBAL)
+            # from a function body or a catch body (where it is local).
+            at_top = true
+            top = top + emit_stmt(st, 1)
+            at_top = false
+        }
+        i = i + 1
+    }
+
+    # Two things are emitted only when the program actually needs them, because
+    # G6's target is ZERO warnings in the output and -Wall objects to both an
+    # unused static function and an unused local.
+    NEEDS_IDENT = uses_ident(body)
+    # main's OWN statements need an env as well: a top-level `let` puts a name in
+    # g_globals and every later top-level read is mx_eval_ident_gen(n, env), so
+    # main must bind env to the globals. uses_env answers for function bodies,
+    # which declare their own; main is the one frame that does not, so the flag
+    # is OR'd with the top level's need.
+    NEEDS_ENV = uses_env(body) || top_uses_env(top)
+
+    TOPLEVEL = top
+    # The class text goes AFTER the function prototypes but BEFORE the function
+    # bodies: a method's table points at a generated function, and a class's
+    # register function references the method pointers, so both need the
+    # declarations to exist first. The order is therefore protos -> classes ->
+    # defs -> main, and moving it produces an undeclared identifier rather than a
+    # wrong answer.
+    return emit_prologue() + emit_runtime(NEEDS_IDENT) + protos + "\n" +
+           CLASSES_TEXT + "\n" + defs + "\n" + emit_epilogue(NEEDS_ENV)
+}
+
+let ENV_NAME = "env"
+let CATCH_SEQ = 0
+let FN_REGS = ""
+let CLASSES_TEXT = ""
+let CLASS_REGISTRARS = ""
+let at_top = false
+let NEEDS_IDENT = false
+let NEEDS_ENV = false
+
+# emit_assign_target - the left-hand side of an assignment. The corpus only
+# assigns to a plain variable; anything else is refused by NAME, because a
+# silently-wrong target is the kind of defect a golden catches only by luck.
+func emit_assign_target(target, indent) {
+    # An index target `a[i] = v`. It is a STORE, and the store is what
+    # mx_index_set does - a DIFFERENT function from mx_index because the host's
+    # two paths use different words: reading a non-integer index says "Index must
+    # be an integer" (:631) and writing one says "Array index must be an integer"
+    # (:422). Sharing one function with a flag would have been tidier and wrong.
+    #
+    # mx_index_set RETURNS the (possibly grown) array, so the emitted statement
+    # rebinds the holder rather than discarding the result. An emitted
+    # `(void)mx_index_set(...)` would compile, and would silently lose every
+    # write whose store moved - a wrong ANSWER rather than a failure.
+    if target.kind == "Index" {
+        let base = target.array
+        if base.kind != "Ident" {
+            throwx "emit_assign_target: nested index target is outside the B-2 subset"
+        }
+        # The holder is whichever env the BINDING lives in - g_globals for a
+        # top-level let (the no-closures rule), ENV_NAME inside a function or a
+        # catch arm. Writing `env = mx_index_set(env, ...)` for a top-level array
+        # is a silent wrong store: it rebinds main's local, which nothing reads.
+        # mx_eval_ident_gen reads the name anyway, so the read side is
+        # unaffected; only the write side needed the holder.
+        let holder = ENV_NAME
+        if at_top {
+            holder = "g_globals"
+        }
+        # READ the array out of the holder env, store into it, WRITE it back.
+        # The env and the array are different types, so this is three steps and
+        # not one: `mx_index_set(g_globals, ...)` is a type error, and
+        # `mx_eval_ident_gen(a, env) = ...` is not even C. Reading and writing
+        # through the holder is also what makes the store visible to the OTHER
+        # references to the same binding, which is the whole point of a store.
+        # mx_store_index(ENV, NAME, IDX, VAL) - a purpose-built helper, because
+        # the emitted fragment is only HALF an expression: emit_stmt appends the
+        # value and then ");". Fitting env_set's own parentheses into that shape
+        # would mean returning an unbalanced prefix, which is how the first
+        # attempt produced "expected ')' before ';'" at line 45. One helper, one
+        # clean call site, and the READ-then-WRITE is in one place in C where it
+        # can be commented.
+        return "mx_store_index(" + holder + ", " + c_str(base.name) + ", " +
+               emit_expr(target.index) + ", "
+    }
+    # A FIELD target: `this.name = n` inside an init, or `a.x = 1` outside one.
+    # It writes the instance's OWN dictionary - never the class's field table,
+    # which is shared by every instance of the class. That is the host's rule
+    # (eval_dot's first arm reads the instance dict before the class's declared
+    # fields) and it is why assigning one instance's field cannot be seen by a
+    # second instance of the same class.
+    #
+    # The write goes to the RECEIVER, not to a chain walk: an inherited field
+    # assigned on a subclass instance lands in that instance's own dict, which is
+    # then found by the fields-first lookup before the parent's declaration.
+    if target.kind == "DotAccess" {
+        return "mx_set_field(" + emit_expr(target.object) + ", " +
+               c_str(target.field) + ", "
+    }
+    if target.kind != "Ident" {
+        throwx "emit_assign_target: '" + target.kind + "' is outside the B-2 subset"
+    }
+    return "env_set(" + ENV_NAME + ", " + c_str(target.name) + ", "
+}
+
+# uses_env(body) - main() needs an `env` local when any emitted statement in
+# main NAMES it. It is NOT "does the program read a variable": a top-level `let`
+# now binds into g_globals (the no-closures rule), so case 08 has no use for
+# `env` at all and emitting one is an unused-variable warning - which G6 refuses.
+# The test is therefore "does anything reference env", not "is there an Ident".
+func uses_env(body) {
+    let blist = as_list(body)
+    let i = 0
+    while i < len(blist) {
+        let k = blist[i].kind
+        if k == "TryCatch" || k == "Assign" {
+            return true
+        }
+        if k == "Print" {
+            if expr_names_env(blist[i].value) {
+                return true
+            }
+        }
+        if k == "ExprStmt" {
+            if expr_names_env(blist[i].expr) {
+                return true
+            }
+        }
+        if k == "Let" {
+            if expr_names_env(blist[i].value) {
+                return true
+            }
+        }
+        if k == "If" || k == "While" {
+            if stmt_names_env(blist[i]) {
+                return true
+            }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+# stmt_names_env - the SINGLE-statement form. uses_env iterates a list and was
+# calling the list walker with one statement, which passed a Node where an array
+# was expected and reported "len expects a string or array, got Node" - a
+# message about the TYPE, two steps from the actual mistake. The two forms are
+# separate functions rather than one that guesses: guessing is how the Node got
+# there in the first place.
+func stmt_names_env(n) {
+    let k = n.kind
+    if k == "TryCatch" || k == "Assign" || k == "Let" || k == "Print" {
+        return true
+    }
+    # ForIn names `env` TWICE over: the emitted statement creates a fresh env per
+    # iteration and env_define()s the loop variables into it, and the body is then
+    # emitted against that new binding. So it is a true here for two independent
+    # reasons and one of them - the body's own identifiers - is the one that would
+    # be missed by a walk that only looked at the emitted loop header.
+    if k == "ForIn" {
+        return true
+    }
+    if k == "If" {
+        if expr_names_env(n.condition) { return true }
+        if body_names_env(as_list(n.then)) { return true }
+        if len(as_list(n.else_b)) > 0 && body_names_env(as_list(n.else_b)) { return true }
+        return false
+    }
+    if k == "While" {
+        if expr_names_env(n.condition) { return true }
+        return body_names_env(as_list(n.body))
+    }
+    if k == "ExprStmt" { return expr_names_env(n.expr) }
+    if k == "Throw" || k == "Return" { return expr_names_env(n.value) }
+    return false
+}
+
+# body_names_env - the statement-list form of uses_env, for a function frame.
+# A param forces an env because env_define(env, param, p0_) names it.
+func body_names_env(stmts) {
+    if typeofx(stmts) != "array" {
+        throwx "body_names_env got " + typeofx(stmts)
+    }
+    let list = as_list(stmts)
+    let i = 0
+    while i < len(list) {
+        let n = list[i]
+        let k = n.kind
+        if k == "TryCatch" || k == "Assign" || k == "Let" || k == "Print" {
+            return true
+        }
+        if k == "ExprStmt" {
+            if expr_names_env(n.expr) {
+                return true
+            }
+        }
+        if k == "Throw" || k == "Return" {
+            if expr_names_env(n.value) {
+                return true
+            }
+        }
+        if k == "If" || k == "While" {
+            return stmt_names_env(n)
+        }
+        i = i + 1
+    }
+    return false
+}
+
+# expr_names_env - true when the emitted C for this expression mentions `env`.
+func expr_names_env(n) {
+    if n == nullx {
+        return false
+    }
+    if typeofx(n) != "Node" {
+        throwx "expr_names_env got " + typeofx(n)
+    }
+    if n.kind == "Ident" || n.kind == "This" {
+        return true
+    }
+    if n.kind == "Literal" {
+        return false
+    }
+    if n.kind == "BinOp" {
+        return expr_names_env(n.left) || expr_names_env(n.right)
+    }
+    if n.kind == "TypeOf" {
+        return expr_names_env(n.value)
+    }
+    if n.kind == "ArrayLiteral" {
+        # An array's ELEMENTS can each name the env, and this arm was missing -
+        # which is how interp.mx's save_signal() (a bare `return [a, b, c]`)
+        # emitted a body that reads `env` in a function that never declared one.
+        # The crown compile found it on the very first function that used it.
+        let a = 0
+        while a < len(n.elements) {
+            if expr_names_env(n.elements[a]) {
+                return true
+            }
+            a = a + 1
+        }
+        return false
+    }
+    if n.kind == "DotAccess" {
+        # The OBJECT names the env; the field name is a string literal in the
+        # emitted C and never an environment read. `g_classes.clear()` is the
+        # second crown failure for the same reason as the first.
+        return expr_names_env(n.object)
+    }
+    if n.kind == "Call" {
+        # The callee is walked ONLY when it is a DotAccess - a METHOD call's
+        # receiver is an expression and names the env (`g_classes.clear()`), and
+        # the callee of a plain `f(x)` is deliberately NOT walked: that is a
+        # user function emitted as a direct C call which builds its own frame, so
+        # its Ident does not name `env`. Walking it made case 08 emit an unused
+        # `env` in main, which G6 refuses. The DotAccess case is the mirror of
+        # that: there the receiver is a real read.
+        if n.callee.kind == "DotAccess" && expr_names_env(n.callee.object) {
+            return true
+        }
+        let a = 0
+        while a < len(n.args) {
+            if expr_names_env(n.args[a]) {
+                return true
+            }
+            a = a + 1
+        }
+        return false
+    }
+    return false
+}
+
+# uses_ident(body) - a structural walk, not a text search: an Ident inside a
+# function body counts as much as one at the top level.
+# stmt_uses_ident - the statement arm of the identifier walk. A statement has no
+# "value", so the walk dispatches on its kind and recurses into the parts that
+# carry expressions.
+func stmt_uses_ident(st) {
+    if st == nullx {
+        return false
+    }
+    # ForIn, and the same lesson as ClassDef below: a statement kind the walk does
+    # not know about is INVISIBLE to it, so a for-in whose body is the program's
+    # only identifier emitted no mx_eval_ident_gen and C reported an implicit
+    # declaration. Three walks - ident, env, and the emitter's own dispatch - have
+    # to agree on what a statement contains, and a fourth that does not know is
+    # the one that produces a compile error in the OUTPUT.
+    if st.kind == "ForIn" {
+        return uses_ident(st.body)
+    }
+    if st.kind == "ClassDef" {
+        let i = 0
+        while i < len(st.methods) {
+            if uses_ident(st.methods[i].body) {
+                return true
+            }
+            i = i + 1
+        }
+        if st.init != nullx && uses_ident(st.init.body) {
+            return true
+        }
+        return false
+    }
+    if st.kind == "FuncDef" {
+        return uses_ident(st.body)
+    }
+    return expr_uses_ident(st)
+}
+
+func uses_ident(body) {
+    let list = as_list(body)
+    let i = 0
+    while i < len(list) {
+        if expr_uses_ident(list[i]) {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+func expr_uses_ident(n) {
+    if n == nullx {
+        return false
+    }
+    if n.kind == "Ident" || n.kind == "This" {
+        return true
+    }
+    # A class's METHODS hold expressions too, and expr_uses_ident is the walk
+    # for both expressions and statements. Without this arm a class was opaque
+    # to every analysis, so a program using `this` only inside a method emitted
+    # no mx_eval_ident_gen and C reported an implicit declaration.
+    if n.kind == "ClassDef" || n.kind == "ForIn" {
+        return stmt_uses_ident(n)
+    }
+    if n.kind == "Literal" {
+        return false
+    }
+    if n.kind == "BinOp" {
+        return expr_uses_ident(n.left) || expr_uses_ident(n.right)
+    }
+    if n.kind == "TypeOf" {
+        return expr_uses_ident(n.value)
+    }
+    if n.kind == "Call" {
+        if expr_uses_ident(n.callee) {
+            return true
+        }
+        let a = 0
+        while a < len(n.args) {
+            if expr_uses_ident(n.args[a]) {
+                return true
+            }
+            a = a + 1
+        }
+        return false
+    }
+    if n.kind == "Index" {
+        return expr_uses_ident(n.array) || expr_uses_ident(n.index)
+    }
+    if n.kind == "DotAccess" {
+        # The OBJECT names a variable; the field name is a literal in the emitted
+        # C. Without this arm `this.pos` in a method read as "no identifier", so a
+        # class that touched only its own fields emitted NO mx_eval_ident_gen and
+        # C refused to compile the very code that uses `this`.
+        #
+        # This is the third time this walk has been the defect rather than the
+        # emitter (B-3.3: ClassDef opaque; B-3.5: ForIn absent; now DotAccess).
+        # The pattern is worth naming: a walk and a dispatcher that both switch
+        # on a node kind must be taught the kind in the SAME edit, and nothing in
+        # the language enforces that - the symptom is always an undeclared
+        # function in generated C, which points at the runtime rather than at the
+        # analysis that forgot to ask.
+        return expr_uses_ident(n.object)
+    }
+    if n.kind == "ArrayLiteral" {
+        let e = 0
+        while e < len(n.elements) {
+            if expr_uses_ident(n.elements[e]) {
+                return true
+            }
+            e = e + 1
+        }
+        return false
+    }
+    if n.kind == "UnaryOp" {
+        return expr_uses_ident(n.value)
+    }
+    if n.kind == "Let" || n.kind == "Print" || n.kind == "Throw" {
+        return expr_uses_ident(n.value)
+    }
+    if n.kind == "Assign" {
+        # The VALUE and the TARGET, because the target can be an EXPRESSION:
+        # `this.i = v` emits mx_set_field(mx_eval_ident_gen("this", env), ...), so
+        # the target names `env` exactly as much as the value does. Walking only
+        # the value is what let a field-writing method compile to a call on an
+        # undeclared mx_eval_ident_gen.
+        if n.target != nullx && expr_uses_ident(n.target) {
+            return true
+        }
+        return expr_uses_ident(n.value)
+    }
+    # `importx name` reads NO variable - it binds one - so it contributes false
+    # to the ident walk. It is listed here only so a reader can see that was
+    # decided rather than missed.
+    if n.kind == "Import" {
+        return false
+    }
+    if n.kind == "Return" {
+        return expr_uses_ident(n.value)
+    }
+    if n.kind == "ExprStmt" {
+        return expr_uses_ident(n.expr)
+    }
+    if n.kind == "TryCatch" {
+        if uses_ident(n.try_body) {
+            return true
+        }
+        return uses_ident(n.catch_body)
+    }
+    if n.kind == "If" {
+        if expr_uses_ident(n.condition) {
+            return true
+        }
+        if uses_ident(n.then) {
+            return true
+        }
+        if len(as_list(n.else_b)) > 0 && uses_ident(n.else_b) {
+            return true
+        }
+        return false
+    }
+    if n.kind == "While" {
+        if expr_uses_ident(n.condition) {
+            return true
+        }
+        return uses_ident(n.body)
+    }
+    if n.kind == "FuncDef" {
+        return uses_ident(n.body)
+    }
+    return false
+}
+
+# ------------------------------------------------------------------
+# The small runtime the generated code needs beyond the substrate:
+# a print and an Ident read. Both are HERE rather than in mini.c so the
+# emitted code carries its own definition of "what a Print does" - and so a
+# transpiler bug cannot be masked by a substrate bug.
+# ------------------------------------------------------------------
+func emit_runtime(needs_ident) {
+    # The Ident helper is emitted ONLY when a case uses an Ident. Emitting it
+    # unconditionally gives -Wall a "defined but not used" warning, and G6's
+    # target is zero warnings in the OUTPUT - so the emitter has to know.
+    let o = "/* the helpers a generated program needs from the emitter */\n"
+    o = o + "static void mx_print_gen(MxValue v) {\n"
+    o = o + "    if (v.tag == MX_STR) {\n"
+    o = o + "        printf(\"%s\\n\", v.as.s);\n"
+    o = o + "    } else {\n"
+    o = o + "        char buf[512];\n"
+    o = o + "        mx_display(v, buf, sizeof buf);\n"
+    o = o + "        printf(\"%s\\n\", buf);\n"
+    o = o + "    }\n"
+    o = o + "}\n\n"
+    if needs_ident {
+        o = o + "/* An Ident is a variable read. The walk is the substrate's, so the scoping\n"
+        o = o + " * rule lives in exactly one place - and case 09, which is the case that\n"
+        o = o + " * caught an invented closure in B-1, is what proves it here too. */\n"
+        o = o + "static MxValue mx_eval_ident_gen(const char *name, MxEnv *env) {\n"
+        o = o + "    MxValue v;\n"
+        o = o + "    if (!env_get(env, name, &v))\n"
+        o = o + "        mx_raise(\"Undefined variable '%s'\", name);\n"
+        o = o + "    return v;\n"
+        o = o + "}\n\n"
+    }
+    o = o + "int main(int argc, char **argv);\n"
+    return o
+}

@@ -1,0 +1,42 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# stdlib.mx - MountX Standard Library v1.1 (all-in-one)
+# Usage: importx stdlib
+
+importx type
+importx error
+importx iter
+importx assert
+importx random
+importx args
+importx enum
+importx exception
+importx dict
+importx map
+importx set
+importx hashtable
+importx tuple
+importx collections
+importx bst
+importx linkedlist
+importx queue
+importx stack
+importx graph
+importx math
+importx mathfull
+importx string
+importx json
+importx regex
+importx arrayfull
+importx array
+importx io
+importx sys
+importx net
+importx os
+importx time
+importx db
+importx datetime
+importx url
+importx process
+importx buffer
+
+func stdlib_version() { return "mountx stdlib 1.1 - 37 modules" }

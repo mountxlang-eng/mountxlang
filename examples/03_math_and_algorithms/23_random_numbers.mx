@@ -1,0 +1,24 @@
+# examples/03_math_and_algorithms/23_random_numbers.mx
+# Pseudo-random number generation with the random module
+
+mountx
+importx random
+
+# Generate numbers using the global random generator
+printx("Random integer below 100: " + random.rand_below(100))
+printx("Random integer between 10 and 50: " + random.rand_int(10, 50))
+printx("Coin flip (50% chance): " + random.rand_chance(50))
+
+let colors = ["Crimson", "Emerald", "Sapphire", "Gold", "Violet"]
+printx("Random choice from colors: " + random.rand_choice(colors))
+
+let deck = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+let shuffled = random.rand_shuffle(deck)
+printx("Shuffled deck: " + shuffled)
+
+# Seeded generator for 100% reproducible sequences
+let rng = newx random.Rand(1337)
+printx("Seeded RNG next(): " + rng.next())
+printx("Seeded RNG next(): " + rng.next())
+
+unmountx

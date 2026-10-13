@@ -1,0 +1,380 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# json.mx - JSON encode/decode in pure mountx
+# Objects decode to PAIRS: [["key", value], ...] (see map.mx helpers).
+# stringify also accepts dict.Dict / map.Map instances (they have .keys/.values).
+# Limitations: \u escapes are not decoded; floats print via Python's str form.
+
+importx string
+
+func _j_fail(msg, i) {
+    throwx "json: " + msg + " at position " + i
+}
+
+func _j_skip_ws(s, i) {
+    while i < len(s) {
+        let c = s[i]
+        if c == " " || c == "\t" || c == "\n" || c == "\r" {
+            i = i + 1
+        } else {
+            return i
+        }
+    }
+    return i
+}
+
+func _j_peek(s, i) {
+    if i >= len(s) {
+        return ""
+    }
+    return s[i]
+}
+
+func _j_match(s, i, word) {
+    let n = len(word)
+    if i + n > len(s) {
+        return false
+    }
+    let j = 0
+    while j < n {
+        if s[i + j] != word[j] {
+            return false
+        }
+        j = j + 1
+    }
+    return true
+}
+
+func _j_pow10(n) {
+    let p = 1
+    let i = 0
+    while i < n {
+        p = p * 10
+        i = i + 1
+    }
+    return p
+}
+
+func _j_quote(s) {
+    let out = "\""
+    let i = 0
+    while i < len(s) {
+        let ch = s[i]
+        if ch == "\"" {
+            out = out + "\\\""
+        } else if ch == "\\" {
+            out = out + "\\\\"
+        } else if ch == "\n" {
+            out = out + "\\n"
+        } else if ch == "\t" {
+            out = out + "\\t"
+        } else if ch == "\r" {
+            out = out + "\\r"
+        } else {
+            out = out + ch
+        }
+        i = i + 1
+    }
+    return out + "\""
+}
+
+func stringify(v) {
+    let t = typeofx(v)
+    if t == "null" {
+        return "null"
+    }
+    if t == "bool" {
+        if v {
+            return "true"
+        }
+        return "false"
+    }
+    if t == "int" || t == "float" {
+        return "" + v
+    }
+    if t == "string" {
+        return _j_quote(v)
+    }
+    if t == "array" {
+        let parts = []
+        for x in v {
+            parts = parts + [stringify(x)]
+        }
+        return "[" + string.join(parts, ",") + "]"
+    }
+    if t == "Dict" || t == "Map" {
+        let parts = []
+        let i = 0
+        while i < len(v.keys) {
+            parts = parts + [_j_quote("" + v.keys[i]) + ":" + stringify(v.values[i])]
+            i = i + 1
+        }
+        return "{" + string.join(parts, ",") + "}"
+    }
+    throwx "json.stringify: cannot serialize a value of type " + t
+}
+
+# encode a pairs list ([[k, v], ...]) as a JSON object
+func stringify_pairs(pairs) {
+    let parts = []
+    for p in pairs {
+        parts = parts + [_j_quote("" + p[0]) + ":" + stringify(p[1])]
+    }
+    return "{" + string.join(parts, ",") + "}"
+}
+
+# ---- decoder: every _j_parse_* takes (s, i) and returns [value, next_i] ----
+
+func _j_parse_value(s, i) {
+    let c = _j_peek(s, i)
+    if c == "" {
+        _j_fail("unexpected end of input", i)
+    }
+    if c == "{" {
+        return _j_parse_object(s, i)
+    }
+    if c == "[" {
+        return _j_parse_array(s, i)
+    }
+    if c == "\"" {
+        return _j_parse_string(s, i)
+    }
+    if c == "t" {
+        if _j_match(s, i, "true") {
+            return [true, i + 4]
+        }
+        _j_fail("bad literal", i)
+    }
+    if c == "f" {
+        if _j_match(s, i, "false") {
+            return [false, i + 5]
+        }
+        _j_fail("bad literal", i)
+    }
+    if c == "n" {
+        if _j_match(s, i, "null") {
+            return [nullx, i + 4]
+        }
+        _j_fail("bad literal", i)
+    }
+    return _j_parse_number(s, i)
+}
+
+func _j_parse_string(s, i) {
+    let out = ""
+    i = i + 1
+    while i < len(s) {
+        let ch = s[i]
+        if ch == "\"" {
+            return [out, i + 1]
+        }
+        if ch == "\\" {
+            if i + 1 >= len(s) {
+                _j_fail("unterminated escape", i)
+            }
+            let e = s[i + 1]
+            if e == "\"" {
+                out = out + "\""
+            } else if e == "\\" {
+                out = out + "\\"
+            } else if e == "/" {
+                out = out + "/"
+            } else if e == "b" {
+                out = out + "\b"
+            } else if e == "f" {
+                out = out + "\f"
+            } else if e == "n" {
+                out = out + "\n"
+            } else if e == "r" {
+                out = out + "\r"
+            } else if e == "t" {
+                out = out + "\t"
+            } else if e == "u" {
+                _j_fail("\\u escapes are not supported by this decoder", i)
+            } else {
+                _j_fail("invalid escape \\" + e, i)
+            }
+            i = i + 2
+        } else {
+            out = out + ch
+            i = i + 1
+        }
+    }
+    _j_fail("unterminated string", i)
+}
+
+func _j_parse_number(s, i) {
+    let neg = false
+    if s[i] == "-" {
+        neg = true
+        i = i + 1
+    }
+    let dg = "0123456789"
+    let intpart = 0
+    let n_dig = 0
+    while i < len(s) {
+        let d = string.index_of(dg, s[i])
+        if d < 0 {
+            break
+        }
+        intpart = intpart * 10 + d
+        n_dig = n_dig + 1
+        i = i + 1
+    }
+    if n_dig == 0 {
+        _j_fail("bad number", i)
+    }
+    let val = intpart
+    if i < len(s) {
+        if s[i] == "." {
+            i = i + 1
+            let fv = 0
+            let fc = 0
+            while i < len(s) {
+                let d = string.index_of(dg, s[i])
+                if d < 0 {
+                    break
+                }
+                fv = fv * 10 + d
+                fc = fc + 1
+                i = i + 1
+            }
+            if fc == 0 {
+                _j_fail("bad number: digits expected after '.'", i)
+            }
+            val = intpart + fv / _j_pow10(fc)
+        }
+    }
+    if i < len(s) {
+        if s[i] == "e" || s[i] == "E" {
+            i = i + 1
+            let eneg = false
+            if i < len(s) {
+                if s[i] == "+" {
+                    i = i + 1
+                } else if s[i] == "-" {
+                    eneg = true
+                    i = i + 1
+                }
+            }
+            let ev = 0
+            let ec = 0
+            while i < len(s) {
+                let d = string.index_of(dg, s[i])
+                if d < 0 {
+                    break
+                }
+                ev = ev * 10 + d
+                ec = ec + 1
+                i = i + 1
+            }
+            if ec == 0 {
+                _j_fail("bad number: digits expected in exponent", i)
+            }
+            if eneg {
+                val = val / _j_pow10(ev)
+            } else {
+                val = val * _j_pow10(ev)
+            }
+        }
+    }
+    if neg {
+        return [0 - val, i]
+    }
+    return [val, i]
+}
+
+func _j_parse_array(s, i) {
+    i = i + 1
+    i = _j_skip_ws(s, i)
+    if _j_peek(s, i) == "]" {
+        return [[], i + 1]
+    }
+    let out = []
+    while true {
+        i = _j_skip_ws(s, i)
+        let r = _j_parse_value(s, i)
+        out = out + [r[0]]
+        i = r[1]
+        i = _j_skip_ws(s, i)
+        let c = _j_peek(s, i)
+        if c == "," {
+            i = i + 1
+        } else if c == "]" {
+            return [out, i + 1]
+        } else {
+            _j_fail("expected ',' or ']' in array", i)
+        }
+    }
+}
+
+func _j_parse_object(s, i) {
+    i = i + 1
+    i = _j_skip_ws(s, i)
+    if _j_peek(s, i) == "}" {
+        return [[], i + 1]
+    }
+    let out = []
+    while true {
+        i = _j_skip_ws(s, i)
+        if _j_peek(s, i) != "\"" {
+            _j_fail("expected string key in object", i)
+        }
+        let kr = _j_parse_string(s, i)
+        let k = kr[0]
+        i = kr[1]
+        i = _j_skip_ws(s, i)
+        if _j_peek(s, i) != ":" {
+            _j_fail("expected ':' after object key", i)
+        }
+        i = i + 1
+        i = _j_skip_ws(s, i)
+        let vr = _j_parse_value(s, i)
+        out = out + [[k, vr[0]]]
+        i = vr[1]
+        i = _j_skip_ws(s, i)
+        let c = _j_peek(s, i)
+        if c == "," {
+            i = i + 1
+        } else if c == "}" {
+            return [out, i + 1]
+        } else {
+            _j_fail("expected ',' or '}' in object", i)
+        }
+    }
+}
+
+# parses s; throws on bad input. Objects come back as pairs.
+func parse(s) {
+    let i = _j_skip_ws(s, 0)
+    let r = _j_parse_value(s, i)
+    i = _j_skip_ws(s, r[1])
+    if i != len(s) {
+        _j_fail("trailing characters", i)
+    }
+    return r[0]
+}
+
+# -> ["ok", value] or ["err", message]
+func try_parse(s) {
+    tryx {
+        return ["ok", parse(s)]
+    } catchx(e) {
+        return ["err", e]
+    }
+}
+
+# writes v as JSON; returns true on success
+func write_json(path, v) {
+    tryx {
+        writex(path, stringify(v))
+        return true
+    } catchx(e) {
+        return false
+    }
+}
+
+# throws if the file is unreadable or the JSON is bad
+func read_json(path) {
+    let text = readx(path)
+    return parse(text)
+}

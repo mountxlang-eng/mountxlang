@@ -1,0 +1,105 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# set.mx - Set class (array-backed; == is deep equality for members)
+
+classx Set {
+    let keys = []
+
+    func add(v) {
+        if !this.has(v) {
+            this.keys = this.keys + [v]
+        }
+        return this
+    }
+
+    func add_all(arr) {
+        for v in arr {
+            this.add(v)
+        }
+        return this
+    }
+
+    func has(v) {
+        let i = 0
+        while i < len(this.keys) {
+            if this.keys[i] == v {
+                return true
+            }
+            i = i + 1
+        }
+        return false
+    }
+
+    func remove(v) {
+        let out = []
+        let found = false
+        for x in this.keys {
+            if x == v {
+                found = true
+            } else {
+                out = out + [x]
+            }
+        }
+        this.keys = out
+        return found
+    }
+
+    func size() {
+        return len(this.keys)
+    }
+
+    func is_empty() {
+        return len(this.keys) == 0
+    }
+
+    func clear() {
+        this.keys = []
+    }
+
+    func to_array() {
+        return this.keys + []
+    }
+
+    func union(other) {
+        let s = newx Set()
+        s.add_all(this.keys)
+        s.add_all(other.keys)
+        return s
+    }
+
+    func intersection(other) {
+        let s = newx Set()
+        for v in this.keys {
+            if other.has(v) {
+                s.add(v)
+            }
+        }
+        return s
+    }
+
+    # members of this set not in other
+    func difference(other) {
+        let s = newx Set()
+        for v in this.keys {
+            if !other.has(v) {
+                s.add(v)
+            }
+        }
+        return s
+    }
+
+    func is_subset(other) {
+        for v in this.keys {
+            if !other.has(v) {
+                return false
+            }
+        }
+        return true
+    }
+
+    func equals(other) {
+        if this.size() != other.size() {
+            return false
+        }
+        return this.is_subset(other)
+    }
+}

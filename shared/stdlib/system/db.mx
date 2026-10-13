@@ -1,0 +1,48 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# db.mx - SQLite wrapper for MountX
+# Requires native db_open, db_exec, db_query, db_close in interpreter.py
+
+# Open a database, returns connection id
+# Use ":memory:" for in-memory DB
+func open(path) {
+    return db_open(path)
+}
+
+func close(conn) {
+    return db_close(conn)
+}
+
+# Execute INSERT/UPDATE/DELETE/CREATE - returns affected rows
+func exec(conn, sql) {
+    return db_exec(conn, sql)
+}
+
+func exec_params(conn, sql, params) {
+    return db_exec(conn, sql, params)
+}
+
+# Query SELECT - returns array of rows, each row is an array
+func query(conn, sql) {
+    return db_query(conn, sql)
+}
+
+func query_params(conn, sql, params) {
+    return db_query(conn, sql, params)
+}
+
+# Helpers
+func query_one(conn, sql) {
+    let rows = db_query(conn, sql)
+    if len(rows) == 0 {
+        return null
+    }
+    return rows[0]
+}
+
+func query_value(conn, sql) {
+    let row = query_one(conn, sql)
+    if row == null {
+        return null
+    }
+    return row[0]
+}

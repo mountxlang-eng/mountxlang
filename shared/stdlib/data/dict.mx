@@ -1,0 +1,75 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# dict.mx - Map/Dictionary replacement using class
+
+classx Dict {
+    let keys = []
+    let values = []
+
+    func init() {
+        this.keys = []
+        this.values = []
+    }
+
+    func set(k, v) {
+        let i = 0
+        while i < len(this.keys) {
+            if this.keys[i] == k {
+                this.values[i] = v
+                return
+            }
+            i = i + 1
+        }
+        this.keys = this.keys + [k]
+        this.values = this.values + [v]
+    }
+
+    func get(k) {
+        let i = 0
+        while i < len(this.keys) {
+            if this.keys[i] == k {
+                return this.values[i]
+            }
+            i = i + 1
+        }
+        return nullx
+    }
+
+    func has(k) {
+        let i = 0
+        while i < len(this.keys) {
+            if this.keys[i] == k {
+                return true
+            }
+            i = i + 1
+        }
+        return false
+    }
+
+    func remove(k) {
+        let found = false
+        let new_keys = []
+        let new_vals = []
+        let i = 0
+        while i < len(this.keys) {
+            if this.keys[i]!= k {
+                new_keys = new_keys + [this.keys[i]]
+                new_vals = new_vals + [this.values[i]]
+            } else {
+                found = true
+            }
+            i = i + 1
+        }
+        this.keys = new_keys
+        this.values = new_vals
+        return found
+    }
+
+    func size() {
+        return len(this.keys)
+    }
+
+    func clear() {
+        this.keys = []
+        this.values = []
+    }
+}

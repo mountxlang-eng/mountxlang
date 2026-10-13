@@ -1,0 +1,732 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# selfhost/lexer.mx - the MountX lexer, written in MountX. No regex, no natives.
+#
+#   importx lexer                (resolves for a script living in selfhost/ - DESIGN 2)
+#   lex(src)                     -> array of Token, always EOF-terminated
+#   tokenize(src)                -> alias for lex
+#   lex_print(src)               -> prints one canonical line per token, keeps no array
+#   decode_string(raw)           -> value of a closed literal (raw includes both quotes)
+#   classify(word)               -> token name for a whole word, else "IDENT"
+#   render(tokens)               -> canonical lines joined by newlines
+#
+# Parity against lexer.py is enforced by parity.py / parity.mx; selfhost/DESIGN.md
+# holds the contract (E1-E4). Deliberate divergences, all recorded there:
+#   - word and digit classes are ASCII here; lexer.py's regexes are Unicode aware
+#     (D5). A non-ASCII letter is an IDENT for the oracle, an error here - loud.
+#   - \uXXXX decodes only up to U+00FF (D3): MountX has no chr(), so the character
+#     table is the only thing to decode into. Characters above it are fine as
+#     literals in the source - those are copied - but "\u4e2d" raises here where
+#     lexer.py returns a token. Loud, not silent.
+#   - py_repr(s) is exact for 0x00-0xFF and prints anything above literally, which
+#     matches Python for printable non-ASCII but not for non-printable (D4).
+
+importx string
+importx hashtable
+
+# ---- characters without chr/ord (DESIGN 15) --------------------------------
+# Code points 0x00-0xFF as one escaped literal. code -> char is a table index,
+# char -> code is string.index_of, the same trick string.tonum uses on "0123456789".
+let _CODES = "\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u0008\u0009\u000a\u000b\u000c\u000d\u000e\u000f\u0010\u0011\u0012\u0013\u0014\u0015\u0016\u0017\u0018\u0019\u001a\u001b\u001c\u001d\u001e\u001f\u0020\u0021\u0022\u0023\u0024\u0025\u0026\u0027\u0028\u0029\u002a\u002b\u002c\u002d\u002e\u002f\u0030\u0031\u0032\u0033\u0034\u0035\u0036\u0037\u0038\u0039\u003a\u003b\u003c\u003d\u003e\u003f\u0040\u0041\u0042\u0043\u0044\u0045\u0046\u0047\u0048\u0049\u004a\u004b\u004c\u004d\u004e\u004f\u0050\u0051\u0052\u0053\u0054\u0055\u0056\u0057\u0058\u0059\u005a\u005b\u005c\u005d\u005e\u005f\u0060\u0061\u0062\u0063\u0064\u0065\u0066\u0067\u0068\u0069\u006a\u006b\u006c\u006d\u006e\u006f\u0070\u0071\u0072\u0073\u0074\u0075\u0076\u0077\u0078\u0079\u007a\u007b\u007c\u007d\u007e\u007f\u0080\u0081\u0082\u0083\u0084\u0085\u0086\u0087\u0088\u0089\u008a\u008b\u008c\u008d\u008e\u008f\u0090\u0091\u0092\u0093\u0094\u0095\u0096\u0097\u0098\u0099\u009a\u009b\u009c\u009d\u009e\u009f\u00a0\u00a1\u00a2\u00a3\u00a4\u00a5\u00a6\u00a7\u00a8\u00a9\u00aa\u00ab\u00ac\u00ad\u00ae\u00af\u00b0\u00b1\u00b2\u00b3\u00b4\u00b5\u00b6\u00b7\u00b8\u00b9\u00ba\u00bb\u00bc\u00bd\u00be\u00bf\u00c0\u00c1\u00c2\u00c3\u00c4\u00c5\u00c6\u00c7\u00c8\u00c9\u00ca\u00cb\u00cc\u00cd\u00ce\u00cf\u00d0\u00d1\u00d2\u00d3\u00d4\u00d5\u00d6\u00d7\u00d8\u00d9\u00da\u00db\u00dc\u00dd\u00de\u00df\u00e0\u00e1\u00e2\u00e3\u00e4\u00e5\u00e6\u00e7\u00e8\u00e9\u00ea\u00eb\u00ec\u00ed\u00ee\u00ef\u00f0\u00f1\u00f2\u00f3\u00f4\u00f5\u00f6\u00f7\u00f8\u00f9\u00fa\u00fb\u00fc\u00fd\u00fe\u00ff"
+let _HEX = "0123456789abcdefABCDEF"
+# The characters Python's str.strip() treats as whitespace, restricted to
+# 0x00-0xFF (measured, not assumed): 09-0D, 1C-1F, 20, 85, A0. lexer.py's
+# `not code.strip()` short circuit (DESIGN 11) depends on exactly this set.
+let _PY_WS = "\u0009\u000a\u000b\u000c\u000d\u001c\u001d\u001e\u001f\u0020\u0085\u00a0"
+let _DIGITS = "0123456789"
+let _WORD_START = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
+let _WORD_CHAR = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_0123456789"
+let _SKIP = " \t\r\n"
+
+func code_of(c) {
+    # -1 above U+00FF; callers treat that as "not a control character"
+    return string.index_of(_CODES, c)
+}
+
+func char_of(code) {
+    # There is no chr() in MountX: no native, and nothing in the stdlib that can
+    # synthesize a character. The table is the only source of characters, so it
+    # stops at U+00FF and so does this (DESIGN D3). A character above it can still
+    # reach a token value as a literal in the source - those are copied, not
+    # built - but \u4e2d cannot be decoded here while lexer.py decodes it fine.
+    # Failing loudly is the honest option; inventing a character is not.
+    if code < 0 {
+        throwx "lexer.mx: no character for negative code point"
+    }
+    if code > 255 {
+        throwx "lexer.mx: \\u" + code + " is above U+00FF, out of scope (DESIGN D3)"
+    }
+    return _CODES[code]
+}
+
+func is_digit(c)       { return string.index_of(_DIGITS, c) >= 0 }
+func is_hex(c)         { return string.index_of(_HEX, c) >= 0 }
+func is_word_start(c)  { return string.index_of(_WORD_START, c) >= 0 }
+func is_word_char(c)   { return string.index_of(_WORD_CHAR, c) >= 0 }
+func is_skip_ws(c)     { return string.index_of(_SKIP, c) >= 0 }
+func is_py_ws(c)       { return string.index_of(_PY_WS, c) >= 0 }
+
+func hex_value(c) {
+    # case-insensitive: the table is lowercase then uppercase, so % 16 folds them
+    return string.index_of(_HEX, c) % 16
+}
+
+func hex_pair(code) {
+    return _HEX[idiv(code, 16)] + _HEX[code % 16]
+}
+
+# ---- lookup tables (DESIGN 4 and 6) ---------------------------------------
+# Word order mirrors TOKEN_SPEC: the 45 keyword spellings, then the word-form
+# operators (entries 35-37), then TRUE/FALSE (entry 38). Spellings are unique, so
+# the order is only there to keep the table reviewable against the spec.
+func _build_words() {
+    let t = newx HashTable()
+    t.put("mountx", "MOUNTX")
+    t.put("unmountx", "UNMOUNTX")
+    t.put("printx", "PRINTX")
+    t.put("inputx", "INPUTX")
+    t.put("importx", "IMPORTX")
+    t.put("readx", "READX")
+    t.put("writex", "WRITEX")
+    t.put("appendx", "APPENDX")
+    t.put("exportx", "EXPORTX")
+    t.put("tryx", "TRYX")
+    t.put("catchx", "CATCHX")
+    t.put("throwx", "THROWX")
+    t.put("throw", "THROWX")
+    t.put("typeofx", "TYPEOF")
+    t.put("typeof", "TYPEOF")
+    t.put("typex", "TYPEOF")
+    t.put("nullx", "NULL")
+    t.put("null", "NULL")
+    t.put("nil", "NULL")
+    t.put("classx", "CLASSX")
+    t.put("class", "CLASSX")
+    t.put("newx", "NEWX")
+    t.put("new", "NEWX")
+    t.put("thisx", "THISX")
+    t.put("this", "THISX")
+    t.put("selfx", "THISX")
+    t.put("self", "THISX")
+    t.put("super", "SUPER")
+    t.put("extends", "EXTENDS")
+    t.put("let", "LET")
+    t.put("func", "FUNC")
+    t.put("return", "RETURN")
+    t.put("if", "IF")
+    t.put("else", "ELSE")
+    t.put("loop", "LOOP")
+    t.put("while", "WHILE")
+    t.put("for", "FOR")
+    t.put("in", "IN")
+    t.put("break", "BREAK")
+    t.put("continue", "CONTINUE")
+    t.put("lenx", "LEN")
+    t.put("len", "LEN")
+    t.put("length", "LEN")
+    t.put("and", "AND")
+    t.put("or", "OR")
+    t.put("not", "NOT")
+    t.put("true", "BOOL")
+    t.put("false", "BOOL")
+    return t
+}
+
+# Two-character operators, tried before the single-character table (DESIGN 7).
+func _build_sym2() {
+    let t = newx HashTable()
+    t.put("==", "EQEQ")
+    t.put("!=", "NEQ")
+    t.put(">=", "GTE")
+    t.put("<=", "LTE")
+    t.put("&&", "AND")
+    t.put("||", "OR")
+    return t
+}
+
+# Single characters. `!` lands here as NOT only when `!=` did not match first;
+# `&` and `|` are absent on purpose - alone they are MISMATCH (DESIGN 7).
+func _build_sym1() {
+    let t = newx HashTable()
+    t.put("=", "ASSIGN")
+    t.put("+", "PLUS")
+    t.put("-", "MINUS")
+    t.put("*", "MUL")
+    t.put("/", "DIV")
+    t.put("%", "MOD")
+    t.put("(", "LPAREN")
+    t.put(")", "RPAREN")
+    t.put("{", "LBRACE")
+    t.put("}", "RBRACE")
+    t.put("[", "LBRACK")
+    t.put("]", "RBRACK")
+    t.put(":", "COLON")
+    t.put(".", "DOT")
+    t.put(",", "COMMA")
+    t.put(">", "GT")
+    t.put("<", "LT")
+    t.put("!", "NOT")
+    return t
+}
+
+# Escape character -> the character it stands for (DESIGN 12.1). The two codes no
+# literal escape stands for are 0x08 (\b) and 0x0c (\f).
+func _build_escapes() {
+    let t = newx HashTable()
+    t.put("\\", "\\")
+    t.put("\"", "\"")
+    t.put("/", "/")
+    t.put("b", "\u0008")
+    t.put("f", "\u000c")
+    t.put("n", "\n")
+    t.put("r", "\r")
+    t.put("t", "\t")
+    return t
+}
+
+let _WORDS = _build_words()
+let _SYM2 = _build_sym2()
+let _SYM1 = _build_sym1()
+let _ESC = _build_escapes()
+
+func classify(word) {
+    # whole word -> token name, else IDENT. The word run is scanned maximally, so
+    # "ifx" is one IDENT and there is no `\b` to emulate.
+    if _WORDS.has(word) {
+        return _WORDS.get(word)
+    }
+    return "IDENT"
+}
+
+# ---- Python repr (DESIGN 12.3) --------------------------------------------
+# The oracle builds several messages with f-string {!r}, so the port has to render
+# a string the way Python does. Rule below was checked against native repr() for
+# every code point 0x00-0xFF: 0 mismatches. Above U+00FF everything is printed
+# literally, which is right for printable non-ASCII and wrong for the rest (D4).
+func py_repr(s) {
+    let has_sq = string.contains(s, "'")
+    let has_dq = string.contains(s, "\"")
+    let q = "'"
+    if has_sq && !has_dq {
+        q = "\""
+    }
+    let out = q
+    let i = 0
+    while i < len(s) {
+        let c = s[i]
+        let code = code_of(c)
+        if code == 9 {
+            out = out + "\\t"
+        } else if code == 10 {
+            out = out + "\\n"
+        } else if code == 13 {
+            out = out + "\\r"
+        } else if code == 92 {
+            out = out + "\\\\"
+        } else if c == q {
+            out = out + "\\" + q
+        } else if code >= 0 && code < 32 {
+            out = out + "\\x" + hex_pair(code)
+        } else if code == 127 {
+            out = out + "\\x7f"
+        } else if code >= 128 && code <= 160 {
+            out = out + "\\x" + hex_pair(code)
+        } else if code == 173 {
+            out = out + "\\xad"
+        } else {
+            out = out + c
+        }
+        i = i + 1
+    }
+    return out + q
+}
+
+# ---- canonical rendering (DESIGN 13) --------------------------------------
+# Values are escaped so a canonical stream is one line per token: a backslash
+# becomes \\, a field separator | becomes \p, and a control character keeps its
+# \xHH form.
+func enc(s) {
+    let out = ""
+    let i = 0
+    while i < len(s) {
+        let c = s[i]
+        let code = code_of(c)
+        if c == "\\" {
+            out = out + "\\\\"
+        } else if c == "|" {
+            out = out + "\\p"
+        } else if code == 10 {
+            out = out + "\\n"
+        } else if code == 9 {
+            out = out + "\\t"
+        } else if code == 13 {
+            out = out + "\\r"
+        } else if code >= 0 && code < 32 {
+            out = out + "\\x" + hex_pair(code)
+        } else {
+            out = out + c
+        }
+        i = i + 1
+    }
+    return out
+}
+
+classx Token {
+    let ttype = ""
+    let lexeme = ""
+    let line = 1
+    let column = 1
+    let decoded = ""
+
+    func init(ttype, lexeme, line, column) {
+        this.ttype = ttype
+        this.lexeme = lexeme
+        this.line = line
+        this.column = column
+    }
+
+    func value() {
+        # the V field of the canonical line (DESIGN 13): the decoded value for a
+        # STRING, nothing for EOF, the lexeme verbatim otherwise
+        if this.ttype == "EOF" {
+            return ""
+        }
+        if this.ttype == "STRING" {
+            return this.decoded
+        }
+        return this.lexeme
+    }
+
+    func canonical() {
+        return this.ttype + "|" + this.line + "|" + this.column + "|" + enc(this.value())
+    }
+}
+
+# ---- string literal helpers (DESIGN 12) -----------------------------------
+# Two characters no character class matches and no source character can equal:
+# the out-of-range answer from at(), so a lookahead never has to test for it.
+let _NONE = "\u0001\u0001"
+
+func _u_ok(content, i) {
+    # content[i] is the backslash of a \u escape: true when four hex digits follow
+    let k = 0
+    while k < 4 {
+        if i + 2 + k >= len(content) {
+            return false
+        }
+        if !is_hex(content[i + 2 + k]) {
+            return false
+        }
+        k = k + 1
+    }
+    return true
+}
+
+func _u_code(content, i) {
+    let code = 0
+    let k = 0
+    while k < 4 {
+        code = code * 16 + hex_value(content[i + 2 + k])
+        k = k + 1
+    }
+    return code
+}
+
+func _bad_escape_reason(fragment) {
+    # lexer.py's _bad_escape_reason, character for character: the first defect in a
+    # string fragment, where a good escape is 2 characters and a good \uXXXX is 6.
+    # "" means "nothing wrong with the escapes" - the empty string is the Python None.
+    let content = string.substr(fragment, 1, len(fragment))
+    let i = 0
+    let n = len(content)
+    while i < n {
+        if content[i] != "\\" {
+            i = i + 1
+        } else if i + 1 >= n {
+            return "ends with a lone '\\'"
+        } else {
+            let esc = content[i + 1]
+            if esc == "u" {
+                if !_u_ok(content, i) {
+                    return "'\\u' must be followed by 4 hex digits"
+                }
+                i = i + 6
+            } else if _ESC.has(esc) {
+                i = i + 2
+            } else {
+                return "invalid escape '\\" + esc + "'"
+            }
+        }
+    }
+    return ""
+}
+
+func decode_string(value) {
+    # the value of a closed literal; `value` still carries both quotes, as in
+    # lexer.py's decode_string. Only reachable through this API: lex() never lets a
+    # malformed literal through (DESIGN 12.4).
+    let n = len(value)
+    let content = ""
+    if n >= 2 {
+        content = string.substr(value, 1, n - 1)
+    }
+    let out = ""
+    let i = 0
+    let m = len(content)
+    while i < m {
+        let c = content[i]
+        if c != "\\" {
+            out = out + c
+            i = i + 1
+        } else if i + 1 >= m {
+            throwx "Invalid string escape: lone '\\' at end of " + py_repr(value)
+        } else {
+            let esc = content[i + 1]
+            if esc == "u" {
+                if !_u_ok(content, i) {
+                    throwx "Invalid string escape: \\u must be followed by 4 hex digits in " + py_repr(value)
+                }
+                out = out + char_of(_u_code(content, i))
+                i = i + 6
+            } else if _ESC.has(esc) {
+                out = out + _ESC.get(esc)
+                i = i + 2
+            } else {
+                throwx "Invalid string escape '\\" + esc + "' in " + py_repr(value)
+            }
+        }
+    }
+    return out
+}
+
+# ---- the scanner (DESIGN 8-11) --------------------------------------------
+classx Lexer {
+    let src = ""
+    let n = 0
+    let pos = 0
+    let line = 1
+    let column = 1
+    let tline = 1
+    let tcol = 1
+    let tokens = []
+    let stream = false
+
+    func init(source) {
+        this.src = source
+        this.n = len(source)
+    }
+
+    func at(i) {
+        # out of range answers _NONE, which no class matches and no character in the
+        # source can equal, so callers never need a bound test in front of it
+        if i < 0 || i >= this.n {
+            return _NONE
+        }
+        return this.src[i]
+    }
+
+    func step() {
+        # consume one character. Only "\n" opens a line; every character, "\r"
+        # included, takes a column of its own - the same bookkeeping lexer.py does by
+        # counting newlines before a match start (DESIGN 10)
+        if this.src[this.pos] == "\n" {
+            this.line = this.line + 1
+            this.column = 1
+        } else {
+            this.column = this.column + 1
+        }
+        this.pos = this.pos + 1
+    }
+
+    func run_to(i) {
+        while this.pos < i {
+            this.step()
+        }
+    }
+
+    func err(msg) {
+        # every oracle diagnostic is raised at the start of the offending token
+        throwx "[Lexer] Line " + this.tline + ", col " + this.tcol + ": " + msg
+    }
+
+    func _out(t) {
+        # appending to an array rebuilds it (DESIGN 14), so a streaming caller
+        # renders and forgets instead of retaining the token
+        if this.stream {
+            printx(t.canonical())
+        } else {
+            this.tokens = this.tokens + [t]
+        }
+    }
+
+    func emit(ttype, lexeme) {
+        let t = newx Token(ttype, lexeme, this.tline, this.tcol)
+        this._out(t)
+    }
+
+    func emit_string(lexeme, decoded) {
+        let t = newx Token("STRING", lexeme, this.tline, this.tcol)
+        t.decoded = decoded
+        this._out(t)
+    }
+
+    func blank_only() {
+        # lexer.py's `not code.strip()`: true for empty source and for source whose
+        # every character Python calls whitespace
+        let i = 0
+        while i < this.n {
+            if !is_py_ws(this.src[i]) {
+                return false
+            }
+            i = i + 1
+        }
+        return true
+    }
+
+    func run() {
+        while this.pos < this.n {
+            this.tline = this.line
+            this.tcol = this.column
+            let c = this.src[this.pos]
+            if is_word_start(c) {
+                this.scan_word()
+            } else if is_digit(c) {
+                this.scan_number()
+            } else if c == "\"" {
+                this.scan_string()
+            } else if c == "#" {
+                this.scan_comment()
+            } else if is_skip_ws(c) {
+                this.scan_skip()
+            } else {
+                this.scan_symbol()
+            }
+        }
+        # line and column have been carried along, so they already hold the
+        # newlines+1 / last-line-length+1 that lexer.py recomputes for EOF
+        this._out(newx Token("EOF", "", this.line, this.column))
+    }
+
+    func scan_word() {
+        # the run is maximal, which is what makes "ifx" a single IDENT instead of
+        # IF plus IDENT - no \b to emulate here
+        let start = this.pos
+        while this.pos < this.n && is_word_char(this.src[this.pos]) {
+            this.step()
+        }
+        let w = string.substr(this.src, start, this.pos)
+        this.emit(classify(w), w)
+    }
+
+    func scan_skip() {
+        while this.pos < this.n && is_skip_ws(this.src[this.pos]) {
+            this.step()
+        }
+    }
+
+    func scan_comment() {
+        # COMMENT is #[^\n]*: the newline is left for SKIP, so the comment never
+        # swallows the line break under it
+        while this.pos < this.n && this.src[this.pos] != "\n" {
+            this.step()
+        }
+    }
+
+    func scan_symbol() {
+        # two characters first: != has to beat ! or every NEQ would be a NOT
+        if this.pos + 1 < this.n {
+            let two = this.src[this.pos] + this.src[this.pos + 1]
+            if _SYM2.has(two) {
+                this.emit(_SYM2.get(two), two)
+                this.step()
+                this.step()
+                return
+            }
+        }
+        let one = this.src[this.pos]
+        if _SYM1.has(one) {
+            this.emit(_SYM1.get(one), one)
+            this.step()
+            return
+        }
+        this.err("Unexpected character " + py_repr(one))
+    }
+
+    func bad_num_suffix(start) {
+        # BAD_NUM_SUFFIX is \d+(?:\.\d*)?[A-Za-z_]\w*. The digits - and the dot, when
+        # there was one - are already consumed, so only the word run is left to take.
+        # The lexeme is kept whole but never handed out: this always raises.
+        while this.pos < this.n && is_word_char(this.src[this.pos]) {
+            this.step()
+        }
+        let v = string.substr(this.src, start, this.pos)
+        let k = _num_prefix_len(v)
+        let num = string.substr(v, 0, k)
+        let rest = string.substr(v, k, len(v))
+        this.err("Invalid number '" + v + "' - a number cannot be followed by letters. Write '" + num + "' and '" + rest + "' separately")
+    }
+
+    func scan_number() {
+        let start = this.pos
+        while this.pos < this.n && is_digit(this.src[this.pos]) {
+            this.step()
+        }
+        let frac = false
+        let dot = false
+        if this.at(this.pos) == "." {
+            if is_digit(this.at(this.pos + 1)) {
+                # FLOAT took the fraction, so BAD_FLOAT cannot apply to this literal
+                this.step()
+                while this.pos < this.n && is_digit(this.src[this.pos]) {
+                    this.step()
+                }
+                frac = true
+            } else {
+                # remembered, not consumed: the dot only joins the lexeme if a
+                # pattern actually asks for it
+                dot = true
+            }
+        }
+        if frac {
+            if is_word_start(this.at(this.pos)) {
+                this.bad_num_suffix(start)
+                return
+            }
+            this.emit("FLOAT", string.substr(this.src, start, this.pos))
+            return
+        }
+        if dot {
+            if is_word_start(this.at(this.pos + 1)) {
+                # 1.5y is a FLOAT with a suffix; 1.y has nothing between the dot and
+                # the letter, so the dot belongs to the suffix run
+                this.step()
+                this.bad_num_suffix(start)
+                return
+            }
+            let v = string.substr(this.src, start, this.pos) + "."
+            this.err("Invalid float '" + v + "' - trailing dot. Use '" + _rstrip_dots(v) + "' or '" + v + "0'")
+            return
+        }
+        if is_word_start(this.at(this.pos)) {
+            this.bad_num_suffix(start)
+            return
+        }
+        this.emit("INT", string.substr(this.src, start, this.pos))
+    }
+
+    func scan_string() {
+        # The scan follows the unterminated pattern, where an escape is always two
+        # characters and a \uXXXX is a backslash, a u and four ordinary characters.
+        # A closed literal is then re-read by decode_string with the 6-character
+        # \u atom, and a malformed one is explained by _bad_escape_reason.
+        let frag = "\""
+        this.step()
+        let closed = false
+        while this.pos < this.n {
+            let c = this.src[this.pos]
+            if c == "\"" {
+                frag = frag + c
+                this.step()
+                closed = true
+                break
+            }
+            if c == "\n" {
+                break
+            }
+            if c == "\\" {
+                let nx = this.at(this.pos + 1)
+                if nx == "\n" || nx == _NONE {
+                    # an escape cannot cross a newline and has nothing to pair with
+                    # at end of source, so the fragment stops before the dangling
+                    # backslash - which is why "abc\ is unterminated, not a bad
+                    # escape, and why "ends with a lone '\'" is unreachable
+                    break
+                }
+                frag = frag + c + nx
+                this.step()
+                this.step()
+            } else {
+                frag = frag + c
+                this.step()
+            }
+        }
+        let reason = _bad_escape_reason(frag)
+        if reason != "" {
+            this.err("Invalid string literal - " + reason)
+        }
+        if !closed {
+            this.err("Unterminated string literal (missing closing \" before end of line)")
+        }
+        this.emit_string(frag, decode_string(frag))
+    }
+}
+
+func _num_prefix_len(v) {
+    # how much of v the pattern \d+(?:\.\d+)? would take - lexer.py uses that match
+    # to split a BAD_NUM_SUFFIX lexeme into the number and the trailing word
+    let i = 0
+    let n = len(v)
+    while i < n && is_digit(v[i]) {
+        i = i + 1
+    }
+    if i < n && v[i] == "." && i + 1 < n && is_digit(v[i + 1]) {
+        i = i + 1
+        while i < n && is_digit(v[i]) {
+            i = i + 1
+        }
+    }
+    return i
+}
+
+func _rstrip_dots(v) {
+    # v.rstrip(".") from the BAD_FLOAT message
+    let n = len(v)
+    while n > 0 && v[n - 1] == "." {
+        n = n - 1
+    }
+    return string.substr(v, 0, n)
+}
+
+# ---- entry points (DESIGN 8) ----------------------------------------------
+func lex(source) {
+    let lx = newx Lexer(source)
+    if lx.blank_only() {
+        # the short circuit in lexer.py: EOF lands at 1,1 and the source is never
+        # scanned, so whitespace the scanner would reject - a vertical tab, say - is
+        # accepted here and rejected everywhere else
+        let t = newx Token("EOF", "", 1, 1)
+        return [t]
+    }
+    lx.run()
+    return lx.tokens
+}
+
+func tokenize(source) {
+    return lex(source)
+}
+
+func lex_print(source) {
+    # the streaming form: same tokens, same order, no array to rebuild per token
+    let lx = newx Lexer(source)
+    lx.stream = true
+    if lx.blank_only() {
+        let t = newx Token("EOF", "", 1, 1)
+        printx(t.canonical())
+    } else {
+        lx.run()
+    }
+    return true
+}
+
+func render(tokens) {
+    let out = ""
+    let i = 0
+    while i < len(tokens) {
+        if i > 0 {
+            out = out + "\n"
+        }
+        let t = tokens[i]
+        out = out + t.canonical()
+        i = i + 1
+    }
+    return out
+}

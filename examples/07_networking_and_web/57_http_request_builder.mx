@@ -1,0 +1,25 @@
+# examples/07_networking_and_web/57_http_request_builder.mx
+# Building raw HTTP/1.1 wire protocol requests and parsing responses
+
+mountx
+importx net
+
+# 1. Build an HTTP request text
+let headers = [
+    ["User-Agent", "MountX-Client/1.1"],
+    ["Accept", "application/json"]
+]
+let req_text = net.http_request_text("GET", "https://api.github.com/zen", headers, "")
+printx("Constructed HTTP Request:")
+printx(req_text)
+
+# 2. Parse a simulated HTTP response
+let raw_response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nServer: nginx\r\n\r\n{\"message\": \"Responsive and fast\"}"
+let resp = net.http_parse_response(raw_response)
+
+printx("Parsed HTTP Response:")
+printx("  Status Code: " + resp[0])
+printx("  Headers:     " + resp[1])
+printx("  Body:        " + resp[2])
+
+unmountx

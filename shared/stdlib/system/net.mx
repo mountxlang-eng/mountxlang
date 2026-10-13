@@ -1,0 +1,271 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# net.mx - URL / query-string / HTTP-message toolkit.
+# mountx has no sockets, so nothing here opens a connection by itself
+# EXCEPT fetch(), which requires the tiny native `http_get` builtin
+# (the paste-ready Python is in the comment at the bottom).
+
+importx string
+importx mathfull
+importx map
+importx socket
+
+# table of printable ASCII 32..126: index + 32 = character code
+func _char_code(ch) {
+    let table = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+    return string.index_of(table, ch)
+}
+
+func _hex_val(ch) {
+    let d = string.index_of("0123456789abcdef", ch)
+    if d >= 0 {
+        return d
+    }
+    return string.index_of("0123456789ABCDEF", ch)
+}
+
+func url_encode(s) {
+    let lo = "abcdefghijklmnopqrstuvwxyz"
+    let up = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let dg = "0123456789"
+    let extra = "-._~"
+    let hex = "0123456789ABCDEF"
+    let out = ""
+    let i = 0
+    while i < len(s) {
+        let ch = s[i]
+        if string.index_of(lo, ch) >= 0 || string.index_of(up, ch) >= 0 || string.index_of(dg, ch) >= 0 || string.index_of(extra, ch) >= 0 {
+            out = out + ch
+        } else {
+            let idx = _char_code(ch)
+            if idx < 0 {
+                throwx "url_encode: character not encodable: " + ch
+            }
+            let code = idx + 32
+            out = out + "%" + hex[mathfull.idiv(code, 16)] + hex[code % 16]
+        }
+        i = i + 1
+    }
+    return out
+}
+
+func url_decode(s) {
+    let table = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+    let out = ""
+    let i = 0
+    while i < len(s) {
+        let ch = s[i]
+        if ch == "%" {
+            if i + 2 >= len(s) {
+                throwx "url_decode: truncated % escape"
+            }
+            let h1 = _hex_val(s[i + 1])
+            let h2 = _hex_val(s[i + 2])
+            if h1 < 0 || h2 < 0 {
+                throwx "url_decode: bad % escape"
+            }
+            let code = h1 * 16 + h2
+            if code == 10 {
+                out = out + "\n"
+            } else if code == 9 {
+                out = out + "\t"
+            } else if code == 13 {
+                out = out + "\r"
+            } else if code >= 32 && code <= 126 {
+                out = out + table[code - 32]
+            } else if code >= 0 && code <= 255 {
+                out = out + str_chr(code)
+            } else {
+                throwx "url_decode: unsupported character code " + code
+            }
+            i = i + 3
+        } else if ch == "+" {
+            out = out + " "
+            i = i + 1
+        } else {
+            out = out + ch
+            i = i + 1
+        }
+    }
+    return out
+}
+
+# -> [["scheme", s], ["host", h], ["port", p], ["path", p], ["query", q], ["fragment", f]]
+# missing parts are ""
+func url_parse(u) {
+    let rest = u
+    let scheme = ""
+    let sc = string.index_of(rest, "://")
+    if sc >= 0 {
+        scheme = string.substr(rest, 0, sc)
+        rest = string.substr(rest, sc + 3, len(rest))
+    }
+    let fragment = ""
+    let fi = string.index_of(rest, "#")
+    if fi >= 0 {
+        fragment = string.substr(rest, fi + 1, len(rest))
+        rest = string.substr(rest, 0, fi)
+    }
+    let query = ""
+    let qi = string.index_of(rest, "?")
+    if qi >= 0 {
+        query = string.substr(rest, qi + 1, len(rest))
+        rest = string.substr(rest, 0, qi)
+    }
+    let path = "/"
+    let pi = string.index_of(rest, "/")
+    if pi >= 0 {
+        path = string.substr(rest, pi, len(rest))
+        rest = string.substr(rest, 0, pi)
+    }
+    let host = rest
+    let port = ""
+    let pcol = string.index_of(host, ":")
+    if pcol >= 0 {
+        port = string.substr(host, pcol + 1, len(host))
+        host = string.substr(host, 0, pcol)
+    }
+    return [["scheme", scheme], ["host", host], ["port", port], ["path", path], ["query", query], ["fragment", fragment]]
+}
+
+# pass what url_parse returned
+func url_build(parts) {
+    let u = map.pairs_get(parts, "scheme")
+    if u != "" {
+        u = u + "://"
+    }
+    u = u + map.pairs_get(parts, "host")
+    let port = map.pairs_get(parts, "port")
+    if port != "" {
+        u = u + ":" + port
+    }
+    u = u + map.pairs_get(parts, "path")
+    let q = map.pairs_get(parts, "query")
+    if q != "" {
+        u = u + "?" + q
+    }
+    let f = map.pairs_get(parts, "fragment")
+    if f != "" {
+        u = u + "#" + f
+    }
+    return u
+}
+
+# [["k", v], ...] -> "k=v&k2=v2" (values are stringified)
+func query_encode(pairs) {
+    let parts = []
+    for p in pairs {
+        parts = parts + [url_encode("" + p[0]) + "=" + url_encode("" + p[1])]
+    }
+    return string.join(parts, "&")
+}
+
+# "a=1&b=two" -> [["a", "1"], ["b", "two"]] (all values are strings)
+func query_parse(qs) {
+    let out = []
+    if qs == "" {
+        return out
+    }
+    for part in string.split(qs, "&") {
+        let eq = string.index_of(part, "=")
+        if eq < 0 {
+            out = out + [[url_decode(part), ""]]
+        } else {
+            out = out + [[url_decode(string.substr(part, 0, eq)), url_decode(string.substr(part, eq + 1, len(part)))]]
+        }
+    }
+    return out
+}
+
+# builds a raw HTTP/1.1 request string
+func http_request_text(method, url, headers_pairs, body) {
+    let p = url_parse(url)
+    let host = map.pairs_get(p, "host")
+    let port = map.pairs_get(p, "port")
+    if port != "" {
+        host = host + ":" + port
+    }
+    let lines = [method + " " + map.pairs_get(p, "path") + " HTTP/1.1"]
+    lines = lines + ["Host: " + host]
+    for h in headers_pairs {
+        lines = lines + ["" + h[0] + ": " + h[1]]
+    }
+    if body != "" {
+        lines = lines + ["Content-Length: " + len(body)]
+    }
+    return string.join(lines, "\r\n") + "\r\n\r\n" + body
+}
+
+# -> [status_int, header_pairs, body]
+func http_parse_response(text) {
+    let sep = string.index_of(text, "\r\n\r\n")
+    let head = text
+    let body = ""
+    if sep >= 0 {
+        head = string.substr(text, 0, sep)
+        body = string.substr(text, sep + 4, len(text))
+    }
+    let lines = string.split(head, "\r\n")
+    let status = 0
+    if len(lines) > 0 {
+        let sp = string.split(lines[0], " ")
+        if len(sp) > 1 {
+            let code = string.tonum(sp[1])
+            if code != nullx {
+                status = code
+            }
+        }
+    }
+    let headers = []
+    let i = 1
+    while i < len(lines) {
+        let ln = lines[i]
+        let c = string.index_of(ln, ":")
+        if c >= 0 {
+            headers = headers + [[string.trim(string.substr(ln, 0, c)), string.trim(string.substr(ln, c + 1, len(ln)))]]
+        }
+        i = i + 1
+    }
+    return [status, headers, body]
+}
+
+# fetch(url) -> body string. REQUIRES this native builtin pasted into
+# eval_call in interpreter.py (next to the "len" builtin):
+#
+#   if name == "http_get":
+#       if len(args) != 1 or not isinstance(args[0], str):
+#           raise RuntimeError("http_get expects 1 string argument")
+#       import urllib.request, urllib.error
+#       try:
+#           with urllib.request.urlopen(args[0], timeout=15) as resp:
+#               return resp.read().decode("utf-8", "replace")
+#       except (urllib.error.URLError, OSError) as e:
+#           raise RuntimeError(f"http_get failed: {e}")
+func fetch(url) {
+    return http_get(url)
+}
+
+func post(url, body, content_type) {
+    if content_type == nullx {
+        return http_post(url, body)
+    }
+    return http_post(url, body, content_type)
+}
+
+func serve_http(port, handler, max_requests) {
+    let s = newx socket.TcpServer(port, nullx)
+    s.start()
+    let count = 0
+    while max_requests == nullx || count < max_requests {
+        let conn = s.accept()
+        let cfd = conn[0]
+        let raw = socket.recv(cfd, 4096)
+        if len(raw) > 0 {
+            let res = handler(raw)
+            socket.send(cfd, res)
+        }
+        socket.close(cfd)
+        count = count + 1
+    }
+    s.close()
+    return count
+}

@@ -1,0 +1,27 @@
+# examples/07_networking_and_web/56_query_encoding.mx
+# URL parameter and query string encoding/decoding
+
+mountx
+importx net
+
+# 1. Encode query parameters
+let params = [
+    ["query", "mountx programming"],
+    ["limit", 25],
+    ["sort", "stars:desc"]
+]
+
+let encoded_qs = net.query_encode(params)
+printx("Encoded query string: " + encoded_qs)
+
+# 2. Parse query string back to pairs
+let parsed_pairs = net.query_parse(encoded_qs)
+printx("Decoded query pairs: " + parsed_pairs)
+
+# 3. URL encoding individual string
+let unsafe_str = "hello world & special @ chars!"
+let safe_url = net.url_encode(unsafe_str)
+printx("URL encoded: " + safe_url)
+printx("URL decoded: " + net.url_decode(safe_url))
+
+unmountx

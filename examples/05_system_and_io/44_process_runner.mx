@@ -1,0 +1,20 @@
+# examples/05_system_and_io/44_process_runner.mx
+# Subprocess management and exit code inspection with process module
+
+mountx
+importx process
+importx string
+
+printx("Running subprocess:")
+let res = process.run("echo 'MountX Subprocess Output'")
+
+printx("Exit code: " + res.code)
+printx("Was successful? " + res.success())
+printx("Captured stdout: " + res.stdout())
+
+# Checking failure handling
+let bad_proc = process.run("sh -c 'exit 42'")
+printx("Bad process exit code: " + bad_proc.code)
+printx("Bad process success? " + bad_proc.success())
+
+unmountx

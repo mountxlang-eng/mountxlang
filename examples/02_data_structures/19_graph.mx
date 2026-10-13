@@ -1,0 +1,21 @@
+# examples/02_data_structures/19_graph.mx
+# Graph data structure: edges, BFS, DFS, and shortest path
+
+mountx
+importx graph
+
+# Create an undirected graph modeling a mini transport network
+let g = graph.create(false)
+
+g.add_edge("Station_A", "Station_B", 4)
+g.add_edge("Station_A", "Station_C", 2)
+g.add_edge("Station_B", "Station_C", 1)
+g.add_edge("Station_B", "Station_D", 5)
+g.add_edge("Station_C", "Station_D", 8)
+g.add_edge("Station_D", "Station_E", 3)
+
+printx("BFS from Station_A: " + g.bfs("Station_A"))
+printx("DFS from Station_A: " + g.dfs("Station_A"))
+printx("Shortest path from Station_A to Station_E: " + g.shortest_path("Station_A", "Station_E"))
+
+unmountx

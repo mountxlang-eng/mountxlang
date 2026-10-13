@@ -1,0 +1,81 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# enum.mx - type-safe enumeration helper (core/)
+# Usage:
+#   importx enum
+#   let Status = enum.create(["PENDING", "ACTIVE", "COMPLETED", "FAILED"])
+#   let s = Status.get("ACTIVE")  # 1
+#   Status.name_of(1)             # "ACTIVE"
+#   Status.has_name("PENDING")    # true
+
+importx dict
+
+classx Enum {
+    let _name_to_val = nullx
+    let _val_to_name = nullx
+    let _names_list = []
+    let _values_list = []
+
+    func init(items) {
+        this._name_to_val = newx dict.Dict()
+        this._val_to_name = newx dict.Dict()
+        this._names_list = []
+        this._values_list = []
+
+        let i = 0
+        while i < len(items) {
+            let item = items[i]
+            let k = ""
+            let v = i
+            if typeofx(item) == "array" && len(item) == 2 {
+                k = item[0]
+                v = item[1]
+            } else {
+                k = "" + item
+            }
+            this._name_to_val.set(k, v)
+            this._val_to_name.set("" + v, k)
+            this._names_list = this._names_list + [k]
+            this._values_list = this._values_list + [v]
+            i = i + 1
+        }
+    }
+
+    func get(name) {
+        if this._name_to_val.has(name) {
+            return this._name_to_val.get(name)
+        }
+        return nullx
+    }
+
+    func name_of(val) {
+        let key = "" + val
+        if this._val_to_name.has(key) {
+            return this._val_to_name.get(key)
+        }
+        return nullx
+    }
+
+    func has_name(name) {
+        return this._name_to_val.has(name)
+    }
+
+    func has_val(val) {
+        return this._val_to_name.has("" + val)
+    }
+
+    func names() {
+        return this._names_list
+    }
+
+    func values() {
+        return this._values_list
+    }
+
+    func count() {
+        return len(this._names_list)
+    }
+}
+
+func create(items) {
+    return newx Enum(items)
+}

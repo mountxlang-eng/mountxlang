@@ -1,0 +1,82 @@
+# examples/03_math_and_algorithms/30_matrix_operations.mx
+# 2D Matrix addition, transposition, and matrix multiplication
+
+mountx
+
+func matrix_print(name, mat) {
+    printx(name + ":")
+    for row in mat {
+        printx("  " + row)
+    }
+}
+
+func matrix_transpose(mat) {
+    let rows = len(mat)
+    let cols = len(mat[0])
+    let out = []
+    let c = 0
+    while c < cols {
+        let new_row = []
+        let r = 0
+        while r < rows {
+            new_row = new_row + [mat[r][c]]
+            r = r + 1
+        }
+        out = out + [new_row]
+        c = c + 1
+    }
+    return out
+}
+
+func matrix_multiply(a, b) {
+    let a_rows = len(a)
+    let a_cols = len(a[0])
+    let b_rows = len(b)
+    let b_cols = len(b[0])
+
+    if a_cols != b_rows {
+        throwx "Matrix dimensions incompatible for multiplication"
+    }
+
+    let out = []
+    let i = 0
+    while i < a_rows {
+        let row = []
+        let j = 0
+        while j < b_cols {
+            let sum = 0
+            let k = 0
+            while k < a_cols {
+                sum = sum + (a[i][k] * b[k][j])
+                k = k + 1
+            }
+            row = row + [sum]
+            j = j + 1
+        }
+        out = out + [row]
+        i = i + 1
+    }
+    return out
+}
+
+let m1 = [
+    [1, 2, 3],
+    [4, 5, 6]
+]
+
+let m2 = [
+    [7, 8],
+    [9, 1],
+    [2, 3]
+]
+
+matrix_print("Matrix A (2x3)", m1)
+matrix_print("Matrix B (3x2)", m2)
+
+let trans_a = matrix_transpose(m1)
+matrix_print("Transpose of A (3x2)", trans_a)
+
+let prod = matrix_multiply(m1, m2)
+matrix_print("Product A * B (2x2)", prod)
+
+unmountx

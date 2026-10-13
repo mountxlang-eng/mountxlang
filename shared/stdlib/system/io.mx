@@ -1,0 +1,73 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# io.mx - safe wrappers over readx/writex/appendx
+# read_text returns nullx when the file cannot be read (missing, no permission).
+
+importx string
+
+func read_text(path) {
+    tryx {
+        return readx(path)
+    } catchx(e) {
+        return nullx
+    }
+}
+
+func write_text(path, content) {
+    tryx {
+        writex(path, content)
+        return true
+    } catchx(e) {
+        return false
+    }
+}
+
+func append_text(path, content) {
+    tryx {
+        appendx(path, content)
+        return true
+    } catchx(e) {
+        return false
+    }
+}
+
+# nullx if unreadable; a file ending in "\n" yields a trailing "" element
+func read_lines(path) {
+    let text = read_text(path)
+    if text == nullx {
+        return nullx
+    }
+    let lines = string.split(text, "\n")
+    let i = 0
+    while i < len(lines) {
+        let ln = lines[i]
+        if len(ln) > 0 {
+            if ln[len(ln) - 1] == "\r" {
+                lines[i] = string.substr(ln, 0, len(ln) - 1)
+            }
+        }
+        i = i + 1
+    }
+    return lines
+}
+
+func write_lines(path, lines) {
+    return write_text(path, string.join(lines, "\n"))
+}
+
+func append_line(path, line) {
+    let existing = read_text(path)
+    if existing == nullx {
+        return append_text(path, line + "\n")
+    }
+    if len(existing) == 0 {
+        return append_text(path, line + "\n")
+    }
+    if existing[len(existing) - 1]!= "\n" {
+        return append_text(path, "\n" + line + "\n")
+    }
+    return append_text(path, line + "\n")
+}
+
+func file_exists(path) {
+    return read_text(path)!= nullx
+}

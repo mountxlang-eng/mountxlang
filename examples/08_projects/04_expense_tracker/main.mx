@@ -1,0 +1,77 @@
+# examples/08_projects/04_expense_tracker/main.mx
+# Project 4: Expense Tracker & Budget Calculator with JSON storage
+
+mountx
+importx json
+importx io
+importx os
+importx dict
+
+classx ExpenseTracker {
+    let storage_file = ""
+    let expenses = []
+
+    func init(filepath) {
+        this.storage_file = filepath
+        this.expenses = []
+    }
+
+    func add_expense(title, category, amount) {
+        let entry = [
+            ["title", title],
+            ["category", category],
+            ["amount", amount]
+        ]
+        this.expenses = this.expenses + [entry]
+        printx("✔ Recorded expense: " + title + " ($" + amount + ") [" + category + "]")
+    }
+
+    func total_spending() {
+        let sum = 0.0
+        for e in this.expenses {
+            sum = sum + e[2][1]
+        }
+        return sum
+    }
+
+    func spending_by_category() {
+        let cats = newx dict.Dict()
+        for e in this.expenses {
+            let cat = e[1][1]
+            let amt = e[2][1]
+            let cur = cats.get(cat)
+            if cur == nullx {
+                cats.set(cat, amt)
+            } else {
+                cats.set(cat, cur + amt)
+            }
+        }
+        return cats
+    }
+
+    func print_report() {
+        printx("\n=== Expense Tracker Summary Report ===")
+        printx("Total Transactions: " + len(this.expenses))
+        printx("Total Spent:        $" + this.total_spending())
+        printx("\nBreakdown by Category:")
+        let cats = this.spending_by_category()
+        for c in cats.keys {
+            printx("  - " + c + ": $" + cats.get(c))
+        }
+        printx("=====================================\n")
+    }
+}
+
+let tracker_file = os.path_join([os.cwd(), "tmp_expenses.json"])
+let tracker = newx ExpenseTracker(tracker_file)
+
+tracker.add_expense("Cloud Server Hosting", "Infrastructure", 45.00)
+tracker.add_expense("Domain Registration", "Infrastructure", 15.00)
+tracker.add_expense("Coffee with Team", "Food", 18.50)
+tracker.add_expense("Lunch meeting", "Food", 32.00)
+tracker.add_expense("Developer Mechanical Keyboard", "Equipment", 120.00)
+
+tracker.print_report()
+printx("Project 4 finished cleanly.")
+
+unmountx

@@ -1,0 +1,13 @@
+# examples/01_basics/01_hello_world.mx
+# Basic printing and string display in MountX
+
+mountx
+
+printx("Hello, MountX World!")
+printx("Welcome to high-performance scripting.")
+
+let lang_name = "MountX"
+let version = "1.1"
+printx("Running " + lang_name + " version " + version)
+
+unmountx

@@ -1,0 +1,26 @@
+# examples/01_basics/02_variables_types.mx
+# Demonstrates variables, dynamic types, and typeofx
+
+mountx
+importx type
+
+let an_int = 42
+let a_float = 3.14159
+let a_str = "MountX"
+let a_bool = true
+let a_null = nullx
+let an_arr = [1, 2, 3]
+
+printx("Integer: " + an_int + " (type: " + typeofx(an_int) + ")")
+printx("Float: " + a_float + " (type: " + typeofx(a_float) + ")")
+printx("String: " + a_str + " (type: " + typeofx(a_str) + ")")
+printx("Boolean: " + a_bool + " (type: " + typeofx(a_bool) + ")")
+printx("Null value: " + a_null + " (type: " + typeofx(a_null) + ")")
+printx("Array: " + an_arr + " (type: " + typeofx(an_arr) + ")")
+
+# Using the type module helper predicates
+printx("is_num(an_int)? " + type.is_num(an_int))
+printx("is_string(a_str)? " + type.is_string(a_str))
+printx("is_array(an_arr)? " + type.is_array(an_arr))
+
+unmountx

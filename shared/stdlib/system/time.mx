@@ -1,0 +1,133 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# time.mx - clocks, dates, durations (system/)
+# Needs the time_now_ms / sleep_ms natives (Step 2). Dates are UTC.
+
+importx mathfull
+
+func now_ms() {
+    return time_now_ms()
+}
+
+func sleep(ms) {
+    return sleep_ms(ms)
+}
+
+# floor division via Python-style % (remainder of a % b is >= 0 for b > 0)
+func _fdiv(a, b) {
+    let r = a % b
+    return mathfull.idiv(a - r, b)
+}
+
+# [year, month, day, hour, minute, second, ms] in UTC, from epoch ms.
+# Works for pre-1970 timestamps too (negative epoch).
+func date_parts(epoch_ms) {
+    let secs = _fdiv(epoch_ms, 1000)
+    let ms = epoch_ms - secs * 1000
+    let days = _fdiv(secs, 86400)
+    let rem = secs - days * 86400
+    let hh = mathfull.idiv(rem, 3600)
+    rem = rem - hh * 3600
+    let mm = mathfull.idiv(rem, 60)
+    let ss = rem - mm * 60
+
+    # days-since-epoch -> civil date (Hinnant's algorithm)
+    let z = days + 719468
+    let doe = z % 146097
+    let era = mathfull.idiv(z - doe, 146097)
+    let yoe = mathfull.idiv(doe - mathfull.idiv(doe, 1460) + mathfull.idiv(doe, 36524) - mathfull.idiv(doe, 146096), 365)
+    let y = yoe + era * 400
+    let doy = doe - (365 * yoe + mathfull.idiv(yoe, 4) - mathfull.idiv(yoe, 100))
+    let mp = mathfull.idiv(5 * doy + 2, 153)
+    let d = doy - mathfull.idiv(153 * mp + 2, 5) + 1
+    let m = mp + 3
+    if mp >= 10 {
+        m = mp - 9
+    }
+    if m <= 2 {
+        y = y + 1
+    }
+    return [y, m, d, hh, mm, ss, ms]
+}
+
+func _pad2(n) {
+    if n < 10 {
+        return "0" + n
+    }
+    return "" + n
+}
+
+func _pad3(n) {
+    if n < 10  { return "00" + n }
+    if n < 100 { return "0" + n }
+    return "" + n
+}
+
+# "2025-01-07 14:03:09"
+func format_date(epoch_ms) {
+    let p = date_parts(epoch_ms)
+    return "" + p[0] + "-" + _pad2(p[1]) + "-" + _pad2(p[2]) + " " + _pad2(p[3]) + ":" + _pad2(p[4]) + ":" + _pad2(p[5])
+}
+
+# 3723456 -> "1h 2m 3.456s"
+func format_duration(ms) {
+    let neg = false
+    if ms < 0 {
+        neg = true
+        ms = 0 - ms
+    }
+    let out = ""
+    let h = mathfull.idiv(ms, 3600000)
+    let rem = ms - h * 3600000
+    let m = mathfull.idiv(rem, 60000)
+    rem = rem - m * 60000
+    let s = mathfull.idiv(rem, 1000)
+    rem = rem - s * 1000
+    if h > 0 {
+        out = out + h + "h "
+    }
+    if m > 0 {
+        out = out + m + "m "
+    }
+    out = out + s + "." + _pad3(rem) + "s"
+    if neg {
+        return "-" + out
+    }
+    return out
+}
+
+classx Stopwatch {
+    let start_ms = 0
+    let running = false
+    let elapsed_ms = 0
+
+    func init() {
+        this.start_ms = now_ms()
+        this.running = true
+    }
+
+    func stop() {
+        if this.running {
+            this.elapsed_ms = now_ms() - this.start_ms
+            this.running = false
+        }
+        return this.elapsed_ms
+    }
+
+    func restart() {
+        this.start_ms = now_ms()
+        this.elapsed_ms = 0
+        this.running = true
+        return this
+    }
+
+    func peek() {
+        if this.running {
+            return now_ms() - this.start_ms
+        }
+        return this.elapsed_ms
+    }
+
+    func report() {
+        return format_duration(this.peek())
+    }
+}

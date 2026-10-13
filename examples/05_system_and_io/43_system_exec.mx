@@ -1,0 +1,16 @@
+# examples/05_system_and_io/43_system_exec.mx
+# Direct shell command execution with os.system and sys_exec
+
+mountx
+importx os
+
+printx("1. Executing via os.system:")
+let exit_code = os.system("echo 'Hello from os.system command'")
+printx("Exit code: " + exit_code)
+
+printx("2. Executing via sys_exec (capturing output):")
+let raw = sys_exec("uname -s")
+printx("System OS name: " + raw[1])
+printx("Exit code: " + raw[0])
+
+unmountx

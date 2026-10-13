@@ -1,0 +1,31 @@
+# examples/02_data_structures/13_sets.mx
+# Set operations: unique collections, union, intersection, difference
+
+mountx
+importx set
+
+let s1 = newx set.Set()
+s1.add("python")
+s1.add("c")
+s1.add("mountx")
+s1.add("javascript")
+
+let s2 = newx set.Set()
+s2.add("mountx")
+s2.add("c")
+s2.add("rust")
+s2.add("zig")
+
+printx("Set 1: " + s1.to_array())
+printx("Set 2: " + s2.to_array())
+
+let u = s1.union(s2)
+printx("Union (all languages): " + u.to_array())
+
+let inter = s1.intersection(s2)
+printx("Intersection (in both): " + inter.to_array())
+
+let diff = s1.difference(s2)
+printx("Difference (in s1 but not s2): " + diff.to_array())
+
+unmountx

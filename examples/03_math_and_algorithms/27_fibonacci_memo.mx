@@ -1,0 +1,55 @@
+# examples/03_math_and_algorithms/27_fibonacci_memo.mx
+# Dynamic Programming: Memoized Fibonacci vs iterative Fibonacci
+
+mountx
+importx dict
+
+classx MemoizedFib {
+    let memo = nullx
+
+    func init() {
+        this.memo = newx dict.Dict()
+        this.memo.set(0, 0)
+        this.memo.set(1, 1)
+    }
+
+    func compute(n) {
+        if this.memo.has(n) {
+            return this.memo.get(n)
+        }
+        let val = this.compute(n - 1) + this.compute(n - 2)
+        this.memo.set(n, val)
+        return val
+    }
+}
+
+func iterative_fib(n) {
+    if n <= 0 { return 0 }
+    if n == 1 { return 1 }
+    let a = 0
+    let b = 1
+    let i = 2
+    while i <= n {
+        let temp = a + b
+        a = b
+        b = temp
+        i = i + 1
+    }
+    return b
+}
+
+let fib_calc = newx MemoizedFib()
+
+printx("First 15 Fibonacci numbers:")
+let j = 0
+let seq = []
+while j < 15 {
+    seq = seq + [fib_calc.compute(j)]
+    j = j + 1
+}
+printx("Sequence: " + seq)
+
+printx("Fibonacci(30) via memoization: " + fib_calc.compute(30))
+printx("Fibonacci(30) via iteration:   " + iterative_fib(30))
+
+unmountx

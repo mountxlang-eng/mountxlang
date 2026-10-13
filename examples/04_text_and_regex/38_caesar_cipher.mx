@@ -1,0 +1,41 @@
+# examples/04_text_and_regex/38_caesar_cipher.mx
+# Caesar Cipher encryption and decryption using str_ord and str_chr
+
+mountx
+
+func caesar_encrypt(plaintext, shift) {
+    let out = ""
+    let i = 0
+    while i < len(plaintext) {
+        let ch = plaintext[i]
+        let code = str_ord(ch)
+        # Uppercase A-Z (65..90)
+        if code >= 65 && code <= 90 {
+            let shifted = ((code - 65 + shift) % 26) + 65
+            out = out + str_chr(shifted)
+        } else if code >= 97 && code <= 122 {
+            # Lowercase a-z (97..122)
+            let shifted = ((code - 97 + shift) % 26) + 97
+            out = out + str_chr(shifted)
+        } else {
+            out = out + ch
+        }
+        i = i + 1
+    }
+    return out
+}
+
+func caesar_decrypt(ciphertext, shift) {
+    return caesar_encrypt(ciphertext, 26 - (shift % 26))
+}
+
+let secret = "Hello, MountX Security 2026!"
+printx("Plaintext:  " + secret)
+
+let encrypted = caesar_encrypt(secret, 5)
+printx("Encrypted:  " + encrypted)
+
+let decrypted = caesar_decrypt(encrypted, 5)
+printx("Decrypted:  " + decrypted)
+
+unmountx

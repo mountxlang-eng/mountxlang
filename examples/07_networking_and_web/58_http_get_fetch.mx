@@ -1,0 +1,20 @@
+# examples/07_networking_and_web/58_http_get_fetch.mx
+# Performing live HTTPS GET requests with net.fetch
+
+mountx
+importx net
+importx string
+
+printx("Sending HTTPS GET request to httpbin.org...")
+
+tryx {
+    let response_text = net.fetch("https://httpbin.org/get?source=mountx&edition=native")
+    printx("Successfully received response!")
+    if string.contains(response_text, "mountx") {
+        printx("Verified: Response contains query parameter 'source=mountx'!")
+    }
+} catchx (err) {
+    printx("Network request failed or offline: " + err)
+}
+
+unmountx

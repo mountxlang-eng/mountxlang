@@ -1,0 +1,3248 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# selfhost/interp.mx - the MountX interpreter, written in MountX. Design:
+# selfhost/INTERP_DESIGN.md. This file is the transcription of interpreter.py,
+# and the transcription is the default (as in parser.mx): a function below
+# mirrors the interpreter.py function it is named after, branch for branch and
+# in the same order, so the two files can be read side by side. The host's line
+# numbers are in the comments; where the port deviates, the deviation is named.
+#
+# I-M0 is the value layer and its renderer:
+#
+#   the ten boxes of 3.1          mk_null .. mk_module, plus mk_superbox
+#                                 (renamed from mk_super: interp.mx IMPORTS parser.mx,
+#                                 whose 35 mk_* builders include a mk_super(ln), and a
+#                                 bare module-function name resolves through GLOBALS, so
+#                                 interp's two-arg box stomped parser's one-arg builder
+#                                 and no guest containing `super` could parse - the bare
+#                                 global collision AGENTS.md warns about)
+#   display (3.3)                 display, and the two containers it walks
+#   type_name (3.3)               the typeofx spellings
+#   is_num (3.2)                  guard 1 of the four
+#   the kind slot (5.8)           six kinds, save/restore, no throwx anywhere
+#
+# I-M1 adds the env chain and the first slice of both dispatch chains:
+#
+#   environments (4.1, 4.2)       the [parent, dict] box, envDefine / envGet /
+#                                 envSet / envExists, and all six constructors
+#                                 including module_env, whose parent is globals
+#   exec (7.1)                    Let, Assign, Print, ExprStmt, FuncDef (defined,
+#                                 never called), Import, Return / Break / Continue
+#                                 (slot only), TryCatch, Throw. I-M4 added
+#                                 ClassDef, so every kind 7.1 lists is a
+#                                 transcription and an unknown one reports
+#                                 itself by name (unknown_stmt, 11.4).
+#   evalExpr (7.2)                Literal, Ident, ArrayLiteral, TypeOf
+#   handle_import (12.1)          the four kinds the host's if-chain handles, the
+#                                 candidate walk, and the __mod_env__ stamp
+#   run (6)                       run_program: hoist funcs+classes, then the rest
+#   main.py's uncaught renderer   format_uncaught / format_syntax, because main.py
+#                                 prints the uncaught line on STDOUT and exits 1,
+#                                 which makes it a byte under comparison
+#
+# I-M4 closed the last gap. 7.1's sixteen statement kinds and 7.2's seventeen
+# expression kinds are ALL transcribed, so `too_far` - the milestone refusal that
+# stood in for the missing ones - is gone: with nothing left to refuse, keeping it
+# would invite a future kind to be "handled" by adding a refusal rather than a
+# transcription. An unknown kind is still fatal, by name (11.4).
+#
+# Two deviations from the design text, both forced by this language rather than
+# chosen, and both patched back into INTERP_DESIGN in the same change:
+#
+#   V1  There is no dict native. The port's maps are stdlib/data/dict.mx's Dict
+#       class - chosen because it is the only map here that keeps INSERTION ORDER
+#       (3.3 needs it for instance fields) and mutates in place through an
+#       instance (3.4 needs aliasing). Its API is .set/.get/.has and the .keys /
+#       .values fields, not the dictSet/dictGet/dictKeys the design text used.
+#       One consequence that is easy to get wrong and is used correctly below:
+#       Dict.get cannot distinguish a missing key from a stored nullx, so
+#       existence is always .has - an env frame whose value is nullx must still
+#       resolve (4.1), and I-M1 must not "optimise" that into a null test.
+#   V2  The live kind slot is module lets, not one array. 5.8's
+#       [kind, payload, line] frame is what save/restore moves, and building it
+#       only where a save is needed keeps the steady-state cost of "is anything
+#       unwinding" to one int read, which is what 5.8 rule 1 is for.
+#   V3  Node fields are read through a literal dot, not through field(node, key).
+#       MountX has no dynamic attribute access - there is no way to name a field
+#       with a string - so every branch of exec and evalExpr spells its own
+#       node.kind / node.name / node.value reads, the way parser.mx's Dumper does.
+#       The design's 7.1 helper therefore does not exist, and one consequence has
+#       to be said out loud: a node MISSING a required field dies inside the host
+#       ("Field/method 'x' not found on Node") rather than inside the port, so I11
+#       is measured as a PORT-ERROR / PORT-CRASH classification and not as a
+#       comparable message line. The stamping of 4.3 still works, because writing
+#       an undeclared field is accepted - n.__mod_env__ = env is the same act as
+#       the host's dict assignment.
+#   V4  handle_import's not-found message is "Module 'x' not found." without the
+#       host's f"Searched: {search}" tail (:224), because the candidate list is
+#       built from os.path.normpath of the oracle's four bases and the port's -
+#       selfhost/ where interpreter.py's directory is (D-1's line) - and the two
+#       lists cannot be equal by construction. No I-M1 guest imports a module that
+#       is missing, so the tail is unobserved; if a later case wants it, the search
+#       list has to become a port-visible value, not a Python repr.
+#
+# Run the gate, not this file:  python3 selfhost/parity_interp.py --check
+
+importx dict
+importx parser        # 12.1: the loader parses module files with parser.mx, the
+                      # same front end the gate just certified. It is a real
+                      # dependency as of I-M1 - before the loader existed, interp.mx
+                      # imported nothing, and 9.2's "delegate to the host" only
+                      # covered lexing, which it did not do.
+
+
+# ---- 3.1: one array, three shapes, one tag --------------------------------
+# Every value the port carries is an array whose first element is the tag. All
+# ten, with the host's isinstance test they replace (interpreter.py:91-111):
+#
+#   "N" number        ["N", v]                     v is a host int or float
+#   "B" bool          ["B", true|false]
+#   "Z" null          ["Z"]
+#   "S" string        ["S", "..."]
+#   "A" array         ["A", id, arr]               arr: MountX array of boxes
+#   "F" function      ["F", id, funcdefNode]
+#   "M" bound method  ["M", id, methodNode, instanceBox, klassNode]
+#   "O" instance      ["O", id, className, dict]   dict: name -> box
+#   "U" module        ["U", id, modName, funcs, classes, lets]
+#   "P" super         ["P", instanceBox, klassNode]
+#
+# Four of the ten carry an identity stamp and nothing else does: the host asks
+# for identity in exactly two places - id(v) in display's cycle guard (:67-71, so
+# arrays and instances) and `a is b` at the end of values_equal (:547, so arrays
+# too, since a list that is not a list fails every earlier test, plus functions,
+# bound methods, modules and instances). "P" is the odd shape: the host's super
+# is a fresh dict per evaluation, so it has no identity worth stamping (12.2).
+
+let g_stamp = 0
+
+# The monotonic stamp counter (3.1). Aliasing copies a box and therefore copies
+# its stamp; every host operation that produces a new object goes through one of
+# the mk_* below and mints a fresh one.
+func next_stamp() {
+    g_stamp = g_stamp + 1
+    return g_stamp
+}
+
+func mk_null() { return ["Z"] }
+
+func mk_true() { return ["B", true] }
+
+func mk_false() { return ["B", false] }
+
+# b is a host (MountX) bool, not a box - the constructors take raw host values
+# and hand back boxes; that is the boundary, and it is why they are functions.
+func mk_bool(b) {
+    if b {
+        return mk_true()
+    }
+    return mk_false()
+}
+
+func mk_num(v) { return ["N", v] }
+
+func mk_str(s) { return ["S", s] }
+
+# items is already a plain MountX array of boxes, held by reference: index reads
+# and arr[i] = v are the host's own O(1) in-place operations (3.1), which is why
+# this is not a count + dict.
+func mk_arr(items) { return ["A", next_stamp(), items] }
+
+func mk_func(node) { return ["F", next_stamp(), node] }
+
+func mk_method(node, inst, klass) {
+    return ["M", next_stamp(), node, inst, klass]
+}
+
+func mk_instance(name) { return ["O", next_stamp(), name, newx Dict()] }
+
+# New's own constructor (:655-658). Separate from mk_instance above so that the
+# value-layer cases keep building an instance from a bare name - they exercise
+# display and type_name, which ask only klass['name'], and a name is all 3.1 says an
+# instance box carries. What New adds is the guarantee that the name is the class's
+# OWN name and that the dict is fresh, so two instances of one class never share it.
+func mk_instance_named(class_name) { return ["O", next_stamp(), class_name, newx Dict()] }
+
+func mk_module(name) {
+    return ["U", next_stamp(), name, newx Dict(), newx Dict(), newx Dict()]
+}
+
+func mk_superbox(inst, klass) { return ["P", inst, klass] }
+
+func tag_of(b) { return b[0] }
+
+func stamp_of(b) { return b[1] }
+
+
+# ---- box readers, the only places the layout is touched after the builders ---
+# In-place and never defensive: one dictCopy in a read path would turn 277
+# passing checks into a wall of failures (3.4).
+
+func arr_items(b) { return b[2] }
+
+func arr_len(b) { return len(b[2]) }
+
+func arr_get(b, i) { return b[2][i] }
+
+# The host's arr[idx] = value (:427), in place, through the box.
+func arr_set(b, i, v) {
+    let a = b[2]
+    a[i] = v
+}
+
+func obj_name(b) { return b[2] }
+
+func obj_set(b, k, v) {
+    let d = b[3]
+    d.set(k, v)
+}
+
+func obj_get(b, k) {
+    let d = b[3]
+    return d.get(k)
+}
+
+func obj_has(b, k) {
+    let d = b[3]
+    return d.has(k)
+}
+
+func obj_keys(b) {
+    let d = b[3]
+    return d.keys
+}
+
+func obj_vals(b) {
+    let d = b[3]
+    return d.values
+}
+
+
+# ---- 3.3: display, the output contract -------------------------------------
+# display is what printx prints (:310), what string + produces (:551-552), and
+# what writex writes (:913, :917). Every one of those three inherits this
+# function, so a wrong byte here is wrong in all three at once. disp is the
+# host's display(v, quote_strings, _seen) with the leading defaults split off.
+
+func display(b) { return disp(b, false, []) }
+
+func disp(b, quote, seen) {
+    let t = b[0]
+    if t == "Z" {
+        return "null"                                  # :58-59, not Python's None
+    }
+    if t == "B" {                                      # :60-63
+        if b[1] {
+            return "true"
+        }
+        return "false"
+    }
+    if t == "S" {                                      # :64-65
+        if quote {
+            return "\"" + b[1] + "\""                  # unescaped, deliberately
+        }
+        return b[1]
+    }
+    if t == "N" {
+        return "" + b[1]                               # :88 - see 3.3's last row
+    }
+    if t == "A" {
+        return disp_arr(b, quote, seen)
+    }
+    if t == "O" {
+        return disp_obj(b, quote, seen)
+    }
+    if t == "U" {
+        return "<module " + b[2] + ">"                 # :81-82
+    }
+    if t == "F" {
+        return "<func " + b[2].name + ">"              # :84-85
+    }
+    if t == "M" {
+        return "<method " + b[2].name + ">"            # :86-87
+    }
+    # "P" has no row in the host's display: a super dict has no "type" key, so it
+    # falls through to str(dict) and leaks Python's repr of an AST node. The port
+    # refuses to guess at that text. Reachability is what decides this line, and
+    # the I03 case is where it is measured.
+    throwx "interp: unknown value tag " + t
+}
+
+# seen is the stamps on the current descent. It is copied on the way down
+# (seen + [st]) rather than appended in place, because the host's `_seen |
+# {id(v)}` (:71, :78) is a set union: a value that appears twice as *siblings*
+# has not recursed, and must print in full both times. In-place append would
+# make a shared subtree vanish into "[...]", which is the bug this shape exists
+# to avoid, and I02 measures both halves of it.
+func seen_has(seen, st) {
+    let i = 0
+    while i < len(seen) {
+        if seen[i] == st {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+func disp_arr(b, quote, seen) {
+    let st = b[1]
+    if seen_has(seen, st) {
+        return "[...]"                                 # :69-70
+    }
+    let path = seen + [st]
+    let a = b[2]
+    let out = ""
+    let i = 0
+    while i < len(a) {
+        if i > 0 {
+            out = out + ", "                           # :72 ", ".join
+        }
+        out = out + disp(a[i], true, path)             # inside a container, quoted
+        i = i + 1
+    }
+    return "[" + out + "]"
+}
+
+func disp_obj(b, quote, seen) {
+    let st = b[1]
+    if seen_has(seen, st) {
+        return "{...}"                                 # :76-77
+    }
+    let path = seen + [st]
+    let ks = obj_keys(b)                               # insertion order, 3.3
+    let vs = obj_vals(b)
+    let out = ""
+    let i = 0
+    while i < len(ks) {
+        if i > 0 {
+            out = out + ", "                           # :79
+        }
+        out = out + ks[i] + ": " + disp(vs[i], true, path)
+        i = i + 1
+    }
+    return b[2] + "{" + out + "}"                      # :80
+}
+
+# ---- 3.3: type_name, the typeofx spellings -----------------------------------
+# The host asks Python; the port asks the tag, except for the one place Python's
+# answer cannot be derived from MountX data: int vs float, which is delegated to
+# the host's own typeofx over the raw number inside the box (9.2's policy - the
+# port's numbers ARE the host's numbers, so this is not a reimplementation).
+func type_name(b) {
+    let t = b[0]
+    if t == "Z" {
+        return "null"                                  # :93-94
+    }
+    if t == "B" {
+        return "bool"                                  # :95-96, before any number
+    }
+    if t == "N" {
+        return typeofx(b[1])                           # :97-100: int / float
+    }
+    if t == "S" {
+        return "string"                                # :101-102
+    }
+    if t == "A" {
+        return "array"                                 # :103-104
+    }
+    if t == "O" {
+        return b[2]                                    # :105-106: the class name
+    }
+    if t == "U" {
+        return "module"                                # :107-108
+    }
+    if t == "F" || t == "M" {
+        return "function"                              # :109-110, both of them
+    }
+    if t == "P" {
+        return "dict"                                  # :111, on a super dict
+    }
+    throwx "interp: unknown value tag " + t
+}
+
+
+# ---- 3.2: guard 1 of the four, and the only one that can live here -----------
+# is_num is `isinstance(v, (int, float)) and not isinstance(v, bool)` (:51-52).
+# In the port the tag does the excluding, because a "B" box and an "N" box are
+# different strings at index 0 - the footgun is structural, not procedural.
+# Guards 2, 3 and 4 (values_equal tests bool first, :536; loop rejects bool, :328;
+# eval_index rejects bool as an index, :630) are not value-layer code. They get
+# written at their own call sites in I-M1, in the host's order, rather than folded
+# in here where they would read as already done.
+func is_num(b) { return b[0] == "N" }
+
+func is_bool(b) { return b[0] == "B" }
+
+
+
+# ---- 5.8: the kind slot -------------------------------------------------------
+# One slot, six kinds, and no throwx anywhere in the port's own control flow:
+# guest values enter the channel as payload and only with kind == THROW, so no
+# guest program can forge a return, a break or a continue (5.7's hole).
+#
+# The host needs two kinds where it has one exception class - THROW and ERROR -
+# because the *uncaught* renderer distinguishes them (main.py:42-49), even though
+# a catchx cannot. The distinction is a kind and not a flag on the payload, so
+# rule 4 stays intact: payload is always just the value.
+func CF_NONE() { return 0 }
+
+func CF_RET() { return 1 }     # Return     (:345), absorbed by callFn (:899)
+
+func CF_BREAK() { return 2 }   # Break      (:348), absorbed by the innermost loop
+
+func CF_CONT() { return 3 }    # Continue   (:350), the same three absorbers
+
+func CF_THROW() { return 4 }   # Throw      (:361), absorbed only by TryCatch
+
+func CF_ERROR() { return 5 }   # every error path of 11.3, absorbed by TryCatch
+
+# I-M4's sixth kind, and the only one that is not a control flow: an EOF from
+# inputx. It exists because main.py renders that one error two different ways - a
+# caught EOF is str(e) (:360) and an uncaught one is "<class>: <msg>"
+# (main.py:50-51) - so the payload alone cannot carry both. TryCatch absorbs it
+# exactly as it absorbs ERROR, so a guest catchx sees the message either way.
+func CF_EOF() { return 6 }
+
+# The live slot (V2 above): module lets, so "is anything unwinding" costs one
+# int read on the hot path. g_payload holds a *box* and is meaningless unless
+# g_kind is THROW or ERROR; g_ret_* is the [hasValue, value] pair of 5.8.
+let g_kind = 0
+let g_payload = nullx
+let g_line = 0
+let g_current_line = 0
+let g_ret_has = false
+let g_ret_val = nullx
+
+func set_signal(kind, payload, line) {
+    if line <= 0 && g_current_line > 0 {
+        line = g_current_line
+    }
+    g_kind = kind
+    g_payload = payload
+    g_line = line
+}
+
+# Absorbing clears (rule 3). Forgetting a clear turns one break into a
+# program-wide early exit, which is loud and cheap to test.
+# The emptied slot holds a RAW host null in the payload, not the null box: a
+# catcher that reads a slot it had no business reading then dies on the host's own
+# "Cannot index a null" instead of handing a guest a phantom null. Same for the
+# return pair. Displaying either one while the slot is empty is a port bug, and is
+# meant to look like one (5.6).
+func clear_signal() {
+    g_kind = 0
+    g_payload = nullx
+    g_line = 0
+}
+
+func signal_kind() { return g_kind }
+
+func signal_payload() { return g_payload }
+
+func signal_line() { return g_line }
+
+func signal_active() { return g_kind != 0 }
+
+# 5.8 rule 2: the slot is global, not per-activation, because only one signal is
+# ever in flight. callFn saves the frame on entry and restores it on the
+# RET-absorbing path, exactly as call_function's finally restores self.env (:405).
+func save_signal() { return [g_kind, g_payload, g_line] }
+
+func restore_signal(frame) {
+    g_kind = frame[0]
+    g_payload = frame[1]
+    g_line = frame[2]
+}
+
+func set_return_value(v) {
+    g_ret_has = true
+    g_ret_val = v
+}
+
+func has_return_value() { return g_ret_has }
+
+func take_return_value() {
+    let v = g_ret_val
+    g_ret_has = false
+    g_ret_val = nullx
+    return v
+}
+
+
+# =========================== 4: environments (I-M1) ==========================
+# The host's Environment is a two-field object (:115-145, __slots__ = values,
+# parent) and its methods walk by rebinding a local - they never mutate self.env.
+# That is the whole reason the port can carry environments as plain two-element
+# boxes: a walk-up is a parameter, not a side effect, so no save/restore dance is
+# needed on any path. envGet misses set the kind slot instead of raising, because
+# the port cannot raise a Python RuntimeError (:129) and a guest must be able to
+# catch the miss with tryx (5.8).
+#
+# The box is [parent, valuesDict]; values inside are boxes; keys are plain
+# strings, which is what keeps a guest out of the chain - a program cannot reach
+# env[1] of a frame it was not handed (4.1).
+
+func envNew(parent) {                     # :117-119
+    let d = newx Dict()
+    return [parent, d]
+}
+
+func envParent(env) { return env[0] }      # :119, the port's `env.parent` reader
+
+func envDefine(env, name, box) {           # :121-122
+    let d = env[1]
+    d.set(name, box)
+}
+
+func envGet(env, name) {                   # :124-129
+    let e = env
+    while e != nullx {
+        let d = e[1]
+        if d.has(name) {
+            return d.get(name)
+        }
+        e = e[0]
+    }
+    error_at("Undefined variable '" + name + "'", nullx)
+    return nullx
+}
+
+func envSet(env, name, box) {              # :131-138
+    let e = env
+    while e != nullx {
+        let d = e[1]
+        if d.has(name) {
+            d.set(name, box)
+            return nullx
+        }
+        e = e[0]
+    }
+    let d2 = env[1]                        # :138 declares in the innermost frame
+    d2.set(name, box)
+    return nullx
+}
+
+func envExists(env, name) {                # :140-145
+    let e = env
+    while e != nullx {
+        let d = e[1]
+        if d.has(name) {
+            return true
+        }
+        e = e[0]
+    }
+    return false
+}
+
+# ---- 4.2: the six ways to make one ------------------------------------------
+# They differ only in the parent, which is the claim 4.2 makes and the reason
+# there is no seventh. A seventh constructor that took an arbitrary parent would
+# be how the call env's rule gets lost, so call_env is not written that way.
+
+func global_env() {                        # :225
+    return envNew(nullx)
+}
+
+func block_env(env) {                      # :377, every { } block
+    return envNew(env)
+}
+
+func iteration_env(env) {                  # :400, one per loop iteration
+    return envNew(env)
+}
+
+func catch_env(env, name, box) {           # :332-333
+    let e = envNew(env)
+    envDefine(e, name, box)
+    return e
+}
+
+func module_env(globals) {                 # :866 - the parent is the GLOBALS
+    return envNew(globals)
+}
+
+# :877-879. The one line that decides whether a module function sees its module's
+# lets, and milestone 1's reason to exist: call_env reaches for the node's stamped
+# module scope and falls back to the globals when there is none.
+func call_env(node, globals) {
+    let mod = nullx
+    tryx {
+        mod = node.__mod_env__
+    } catchx (e) {
+        mod = nullx
+    }
+    if mod == nullx {
+        return envNew(globals)             # :879's `or self.globals`
+    }
+    return envNew(mod)
+}
+
+
+# ---- 11.3: the port's error strings -----------------------------------------
+# The host raises Python RuntimeErrors and main.py:49 prefixes them "[Runtime] ";
+# a catchx turns one into str(e) (:359). The port has no Python exceptions, so an
+# error is a slot write whose payload is exactly the string a guest would catch -
+# the same bytes, one channel earlier. Line numbers are NOT part of the message
+# (the host puts none in them), they ride in the slot for the probe's diagnostics.
+func node_line(node) {
+    if node != nullx {
+        tryx {
+            if node.line > 0 {
+                return node.line
+            }
+        } catchx (e) {}
+    }
+    return g_current_line
+}
+
+func error_at(msg, node) {
+    set_signal(CF_ERROR(), mk_str(msg), node_line(node))
+}
+
+# 7.1's hasField, written at its one real user rather than as a generic reader:
+# MountX cannot reach a field through a STRING (V3), so the only way to ask a node
+# whether it has `init` is to read the field by name inside a tryx. The three places
+# the host asks whether a key EXISTS are klass.get("init") (:589, :662, :869 - this
+# helper), the empty-else test (:316 - answered by len(else_b), since parser.mx always
+# builds the [] that Python leaves absent), and __mod_env__ (:879, a tryx inside
+# call_env). Everywhere else the oracle indexes directly and may raise KeyError, which
+# is 11.4's loud death and must stay one: a reader wrapped around every field is how a
+# missing field turns into a quiet null.
+func has_init(klass) {
+    let found = false
+    tryx {
+        found = klass.init != nullx
+    } catchx (e) {
+        found = false                     # the node has no init slot at all
+    }
+    return found
+}
+
+func unknown_stmt(node) {                       # :365's else
+    error_at("Unknown stmt " + node.kind, node)
+}
+
+func unknown_expr(node) {                       # :531's else, and 11.4's "unknown
+    error_at("Unknown expr type: " + node.kind, node)   # kind is fatal": the host's
+}                                               # own text, never a silent null
+
+# A milestone refusal is not one of 11.3's strings: it names the gap instead of
+# filling it, and it goes through the channel, so it can never be mistaken for a
+# guest value. 11.2's ban on silent defaults is why there is no version of these
+# that returns nullx and carries on.
+#
+# I-M4 REMOVED this function. It had five callers - ClassDef in exec and in
+# run_program and in a module, New, Input, and the instance/super arms of eval_dot -
+# and I-M4 implemented all five, so the refusal has no caller left. Keeping a
+# helper nothing calls is 11.2's opposite failure: it invites a future kind to be
+# "handled" by adding a refusal instead of a transcription, and it would keep the
+# milestone number alive as text nobody can reach. All sixteen statement kinds and
+# seventeen expression kinds now answer with
+# 11.3's own strings, and I05_env_exec.mx's refuses-* rows became behaviour rows.
+
+
+# ---- 4.2 / 7.1: the walkers --------------------------------------------------
+# The host's `for s in body: self.execute(s)` (:297-299) with the slot checked
+# after every statement: one signal and the rest of the block is dead, which is
+# what an exception unwinding a for loop means (5.8 rule 6).
+func exec_list(stmts, env) {
+    let i = 0
+    while i < len(stmts) {
+        exec(stmts[i], env)
+        if signal_active() {
+            return nullx
+        }
+        i = i + 1
+    }
+    return nullx
+}
+
+# execute_block (:376-384) pushes - always, even for a one-statement body. That
+# is why a let inside an if is invisible outside it, and why the ban in 4.2 is
+# load-bearing rather than stylistic.
+func exec_block(stmts, env) {
+    return exec_list(stmts, block_env(env))
+}
+
+
+# ---- 7.1: exec ---------------------------------------------------------------
+# The same if-chain, in the same order, over the same kind strings (:302-365).
+# V3: the host indexes a dict by a computed key; MountX cannot reach a field
+# through a string, so each branch spells its own node.field reads. The cost is
+# that a node missing a required field dies inside the HOST (435's "Field/method
+# 'x' not found on Node") instead of inside the port - loud, as 11.1 wants, but
+# as a PORT-ERROR rather than a comparable line. The shape itself is what I11
+# pins, and it is pinned there, not here.
+func exec(node, env) {
+    if node != nullx {
+        tryx {
+            if node.line > 0 {
+                g_current_line = node.line
+            }
+        } catchx (e) {}
+    }
+    let k = node.kind
+    if k == "Let" {                             # :304-305
+        let v = eval_expr(node.value, env)
+        if signal_active() {
+            return nullx
+        }
+        envDefine(env, node.name, v)
+        return nullx
+    }
+    if k == "Assign" {                          # :306-308
+        return exec_assign(node, env)
+    }
+    if k == "Print" {                           # :309-310
+        let pv = eval_expr(node.value, env)
+        if signal_active() {
+            return nullx
+        }
+        printx(display(pv))                     # :310 print(display(...))
+        return nullx
+    }
+    if k == "ExprStmt" {                        # :311-312
+        eval_expr(node.expr, env)
+        return nullx
+    }
+    if k == "If" {                              # :313-317, milestone 2
+        exec_if(node, env)
+        return nullx
+    }
+    if k == "While" {                           # :318-325, milestone 2
+        exec_while(node, env)
+        return nullx
+    }
+    if k == "Loop" {                            # :326-336, milestone 2
+        exec_loop(node, env)
+        return nullx
+    }
+    if k == "ForIn" {                           # :337-338, milestone 2
+        exec_forin(node, env)
+        return nullx
+    }
+    if k == "FuncDef" {                         # :339-340, defined, never called
+        envDefine(env, node.name, mk_func(node))
+        return nullx
+    }
+    if k == "ClassDef" {                        # :341-342 - the registry, and nothing
+        define_class(node.name, node)         # else: no field initialiser runs here,
+        return nullx                           # they run per New (:656)
+    }
+    if k == "Import" {                          # :343-344
+        handle_import(node.name, env)
+        return nullx
+    }
+    if k == "Return" {                          # :345-347
+        if node.value == nullx {
+            set_signal(CF_RET(), nullx, node_line(node))
+            return nullx
+        }
+        let rv = eval_expr(node.value, env)
+        if signal_active() {
+            return nullx
+        }
+        set_return_value(rv)
+        set_signal(CF_RET(), nullx, node_line(node))
+        return nullx
+    }
+    if k == "Break" {                           # :348-349
+        set_signal(CF_BREAK(), nullx, node_line(node))
+        return nullx
+    }
+    if k == "Continue" {                        # :350-351
+        set_signal(CF_CONT(), nullx, node_line(node))
+        return nullx
+    }
+    if k == "TryCatch" {                        # :352-359, the absorb table
+        exec_block(node.try_body, env)
+        let kind = signal_kind()
+        if kind == CF_RET() || kind == CF_BREAK() || kind == CF_CONT() {
+            return nullx                        # :355: never swallowed
+        }
+        if kind == CF_THROW() || kind == CF_ERROR() || kind == CF_EOF() {
+            let caught = signal_payload()
+            clear_signal()                      # absorbed, rule 3
+            exec_catch(node, caught, env)
+        }
+        return nullx
+    }
+    if k == "Throw" {                           # :361-362
+        let tv = eval_expr(node.value, env)
+        if signal_active() {
+            return nullx
+        }
+        set_signal(CF_THROW(), tv, node_line(node))
+        return nullx
+    }
+    unknown_stmt(node)                          # :364-365
+    return nullx
+}
+
+# run_catch (:366-374): a catch env holding the value, and the host's
+# execute_block on top of it - two environments, not one, which is why a let
+# inside a catch arm cannot see the catch variable's own frame.
+func exec_catch(node, box, env) {
+    let e = catch_env(env, node.catch_var, box)
+    return exec_block(node.catch_body, e)
+}
+
+# assign_target (:408-432), milestone-1 slice: the Ident case. The host's other
+# two cases (DotAccess, Index) are 4.4's claim that milestone 1 assigns to plain
+# names and nothing else; reaching for one is milestone 3's business.
+func exec_assign(node, env) {
+    let t = node.target
+    let v = eval_expr(node.value, env)              # :307, the value BEFORE the target
+    if signal_active() {                            # is walked - 7.4's fourth site
+        return nullx
+    }
+    if t.kind == "Ident" {                        # :410-411
+        envSet(env, t.name, v)                    # :132-138, the fall-through
+        return nullx
+    }
+    exec_assign_target(t, v, env)                 # :412-430, milestone 2
+    return nullx
+}
+
+
+# ---- 7.2: evalExpr ----------------------------------------------------------
+# The host's evaluate (:473-531) in its order. Milestone 1 reaches four of the
+# thirteen kinds; the refusal at the end is loud on purpose (11.2), and the nine
+# kinds it covers are the I-M2 through I-M5 backlog written down as code.
+func eval_expr(node, env) {
+    if node != nullx {
+        tryx {
+            if node.line > 0 {
+                g_current_line = node.line
+            }
+        } catchx (e) {}
+    }
+    let k = node.kind
+    if k == "Literal" {                         # :475-476
+        return lit_box(node)
+    }
+    if k == "Ident" {                           # :477-478
+        return envGet(env, node.name)
+    }
+    if k == "This" {                            # :479-482, milestone 2
+        return eval_this(node, env)
+    }
+    if k == "Super" {                           # :483-489, milestone 2
+        return eval_super(node, env)
+    }
+    if k == "ArrayLiteral" {                    # :490-491
+        return eval_array(node, env)
+    }
+    if k == "BinOp" {                           # :492-503, milestone 2
+        let op = node.op
+        let l = eval_expr(node.left, env)       # :494, the left side first: 7.4
+        if signal_active() {
+            return nullx
+        }
+        if op == "AND" {                        # :495-498, short-circuit, and the
+            return eval_and(l, node, env)       # right side is never evaluated
+        }
+        if op == "OR" {                         # :499-502
+            return eval_or(l, node, env)
+        }
+        let r = eval_expr(node.right, env)      # :503
+        if signal_active() {
+            return nullx
+        }
+        return eval_binop(op, l, r, node)
+    }
+    if k == "UnaryOp" {                         # :504-512, milestone 2
+        return eval_unary(node, env)
+    }
+    if k == "Call" {                            # :513-515, milestone 2
+        let args = eval_args(node.args, env)    # :514, all of them, left to right,
+        if signal_active() {                    # BEFORE dispatch - 7.4's second site
+            return nullx
+        }
+        return eval_call(node.callee, args, env)
+    }
+    if k == "DotAccess" {                       # :516-517, milestone 2 (module arm)
+        return eval_dot(node, env)
+    }
+    if k == "Index" {                           # :518-519, milestone 2
+        return eval_index(node, env)
+    }
+    if k == "TypeOf" {                          # :525-526
+        let tv = eval_expr(node.value, env)
+        if signal_active() {
+            return nullx
+        }
+        return mk_str(type_name(tv))
+    }
+    if k == "Read" || k == "Write" || k == "Append" || k == "Export" {
+        return eval_file_builtin(k, node, env)  # :529-530
+    }
+    if k == "Input" {                           # :520-524
+        return eval_input(node, env)
+    }
+    if k == "New" {                             # :527-528
+        return eval_new(node, env)
+    }
+    unknown_expr(node)                          # :531, the host's own text, so a
+    return nullx                                # forged kind reports itself by name
+}
+
+# eval_file_builtin (:904-925), delegated exactly like a native: the four names are
+# nodes rather than functions (9.1 counts them separately for that reason), so the port
+# spells the same node in its OWN source and the host runs it on unboxed arguments.
+# That is what makes 9.6's catcher the point of this function: a missing file raises
+# inside the host while the host is running the port, and without the catcher the case
+# is a PORT-CRASH when the oracle's answer is a caught string. The message
+# `readx: [Errno 2] ...` comes from :924-925 (`f"{kind.lower()}x: {e}"`) and is the
+# host's, free.
+#
+# Write and Append take display(...) on the oracle's value (:913, :917); the port hands
+# over its OWN display of the box, which is byte-identical by 3.3 - the gate for that
+# claim is I00-I02, and it is load-bearing here because the bytes land in a FILE, off
+# the compared stream (9.4's warning). Export hands json.dump the deep-unboxed value
+# (:921), which is why unbox_val is deep; a value that cannot be unboxed is refused
+# rather than written as a box, and I16 is the case that decides what an instance does.
+func eval_file_builtin(kind, node, env) {
+    let a = eval_args(node.args, env)               # :906, all of them, then dispatch
+    if signal_active() {
+        return nullx
+    }
+    let out = nullx
+    let done = false                                # the host's four ifs each RETURN, so
+    tryx {                                          # "did any of them run" is what :925
+        if kind == "Read" {                         # asks, and a null out is a legal
+            out = rebox_val(readx(unbox_val(a[0]))) # answer - Read of an empty file is
+            done = true                             # "" and Write of null is a null
+        }                                           # return, so a sentinel beats a test
+        if kind == "Write" {                        # on the value
+            writex(unbox_val(a[0]), display(a[1]))
+            out = a[1]                              # :915 returns the VALUE
+            done = true
+        }
+        if kind == "Append" {
+            appendx(unbox_val(a[0]), display(a[1]))
+            out = a[1]                              # :919
+            done = true
+        }
+        if kind == "Export" {
+            exportx(unbox_val(a[0]), unbox_val(a[1]))
+            out = a[1]                              # :922
+            done = true
+        }
+    } catchx (e) {
+        error_at(raw_text(e), node)                 # 9.6: the host's string, boxed
+        return nullx
+    }
+    if not done {
+        error_at("Unknown file op " + kind, node)   # :925, unreachable through a
+    }                                               # parsed node, kept for the shape
+    return out
+}
+
+# :514's list comprehension over the arguments. Left to right, and the whole list is
+# built before dispatch, which is what makes f(g(), h()) report g's error first.
+func eval_args(args, env) {
+    let out = []
+    let i = 0
+    while i < len(args) {
+        let b = eval_expr(args[i], env)
+        if signal_active() {
+            return out
+        }
+        out = out + [b]
+        i = i + 1
+    }
+    return out
+}
+
+# :331-336. value_type is the TOKEN type (parser.py:333), and NULL is the one
+# literal whose parsed value the parser invents rather than takes from the token.
+func lit_box(node) {
+    let vt = node.value_type
+    if vt == "NULL" {
+        return mk_null()
+    }
+    if vt == "BOOL" {
+        return mk_bool(node.value)              # 3.1's bool exclusion lives in the tag
+    }
+    if vt == "INT" || vt == "FLOAT" {
+        return mk_num(node.value)
+    }
+    if vt == "STRING" {
+        return mk_str(node.value)
+    }
+    error_at("Unknown literal type " + vt, node)
+    return nullx
+}
+
+# The host's list comprehension over the elements (:491): left to right, one fresh
+# array box, one fresh stamp.
+func eval_array(node, env) {
+    let elems = node.elements
+    let out = []
+    let i = 0
+    while i < len(elems) {
+        let b = eval_expr(elems[i], env)
+        if signal_active() {
+            return nullx
+        }
+        out = out + [b]   # the host appends with `a + [x]`; index assignment (:427)
+        # requires an index that already exists, so out[len(out)] is an error
+        i = i + 1
+    }
+    return mk_arr(out)
+}
+
+# ---- 7.3: truthiness, equality, the operators --------------------------------
+# I-M2's first layer: the three predicates every loop condition, every `if` and
+# every native leans on, transcribed in the host's order.
+
+# :927-932. The order is the claim: the host tests `v is False` (:928) BEFORE the
+# `== 0` (:930), because in Python `false == 0` is True and the numeric test would
+# otherwise be doing a bool's work. The port's bool is a tag, so the same order
+# costs one branch: `B` is read for its own value before `N` is asked whether it is
+# zero, and 3.2's first guard holds with no special case anywhere near it.
+# :930's `== 0` also catches 0.0, and `!= 0` on a port number does the same.
+func is_truthy(b) {
+    let t = b[0]
+    if t == "Z" {                       # :928  v is None
+        return false
+    }
+    if t == "B" {                       # :928  v is False, and true stays true
+        return b[1]
+    }
+    if t == "N" {                       # :930  v == 0, 0.0 included
+        return b[1] != 0
+    }
+    if t == "S" {                       # :930  v == ""
+        return len(b[1]) > 0
+    }
+    if t == "A" {                       # :930  v == []
+        return len(b[2]) > 0
+    }
+    return true                         # instances, modules, functions: always
+}
+
+# :630-631 / :328-329 - `isinstance(idx, bool) or not isinstance(idx, int)`. The
+# bool half is the tag, and the int half is a claim about the RAW number inside the
+# box, which is the one thing the port cannot ask its own representation about. It
+# asks the host instead: typeofx is the native, and it answers "int" or "float" for
+# the value the oracle would have inspected. 9.5 allows this because nothing here
+# crosses into guest view - it is a test, not a value.
+func num_is_int(b) {
+    if b[0] != "N" {
+        return false
+    }
+    return typeofx(b[1]) == "int"
+}
+
+# values_equal (:533-547), the == of 3.2's four bool sites. Same six tests in the
+# same order: bools first, null second, then the two same-type cases, then arrays
+# elementwise, then identity. The `a is b` of :547 becomes the host's own `==` on
+# two boxes: for instances, modules and functions the host compares by identity,
+# and a port box carries a fresh stamp, so a copy never compares equal - which is
+# 12.2's I-D5 (obj.m == obj.m is false) reached by a different road.
+func values_equal(a, b) {
+    let ta = a[0]
+    let tb = b[0]
+    if ta == "B" || tb == "B" {                 # :536-537
+        return ta == "B" && tb == "B" && a[1] == b[1]
+    }
+    if ta == "Z" || tb == "Z" {                 # :538-539
+        return ta == "Z" && tb == "Z"
+    }
+    if ta != tb {                               # :540-547, no cross-type arm exists
+        return false
+    }
+    if ta == "N" || ta == "S" {                 # :540-543
+        return a[1] == b[1]
+    }
+    if ta == "A" {                              # :544-546, deep
+        let xa = a[2]
+        let xb = b[2]
+        if len(xa) != len(xb) {
+            return false
+        }
+        let i = 0
+        while i < len(xa) {
+            if not values_equal(xa[i], xb[i]) {
+                return false
+            }
+            i = i + 1
+        }
+        return true
+    }
+    return a == b                               # :547
+}
+
+
+
+
+# eval_binop (:549-584). The five-step order of 7.3 is what makes `"b" > "a"` work:
+# PLUS, then the two equality ops, then the four comparisons, and only THEN the
+# "needs numbers" guard (:570) that AGENTS lists as a fixed bug. Nothing is
+# reordered for speed - I-D2 - and the arithmetic is the HOST's, so `/`'s
+# always-float (:579) and `%`'s Python sign rule (:583) come free.
+func eval_binop(op, l, r, node) {
+    if op == "PLUS" {                           # :550-557
+        if l[0] == "S" || r[0] == "S" {         # :551-552, string wins over number
+            return mk_str(display(l) + display(r))
+        }
+        if l[0] == "A" && r[0] == "A" {         # :553-554
+            return mk_arr(arr_items(l) + arr_items(r))
+        }
+        if is_num(l) && is_num(r) {             # :555-556
+            return mk_num(l[1] + r[1])
+        }
+        error_at("Cannot add " + type_name(l) + " and " + type_name(r), node)
+        return nullx
+    }
+    if op == "EQEQ" {                           # :558-559, any types
+        return mk_bool(values_equal(l, r))
+    }
+    if op == "NEQ" {                            # :560-561
+        return mk_bool(not values_equal(l, r))
+    }
+    if op == "GT" || op == "LT" || op == "GTE" || op == "LTE" {   # :562-569
+        let ok = is_num(l) && is_num(r)
+        if not ok {
+            ok = l[0] == "S" && r[0] == "S"
+        }
+        if not ok {
+            error_at("Cannot compare " + type_name(l) + " and " + type_name(r), node)
+            return nullx
+        }
+        if op == "GT" {
+            return mk_bool(l[1] > r[1])
+        }
+        if op == "LT" {
+            return mk_bool(l[1] < r[1])
+        }
+        if op == "GTE" {
+            return mk_bool(l[1] >= r[1])
+        }
+        return mk_bool(l[1] <= r[1])
+    }
+    if not (is_num(l) && is_num(r)) {           # :570-571
+        error_at("'" + op + "' needs numbers, got " + type_name(l) + " and " + type_name(r), node)
+        return nullx
+    }
+    if op == "MINUS" {                          # :572-573
+        return mk_num(l[1] - r[1])
+    }
+    if op == "MUL" {                            # :574-575
+        return mk_num(l[1] * r[1])
+    }
+    if op == "DIV" {                            # :576-579, checked before the op
+        if r[1] == 0 {
+            error_at("Division by zero", node)
+            return nullx
+        }
+        return mk_num(l[1] / r[1])              # :579 always a float
+    }
+    if op == "MOD" {                            # :580-583
+        if r[1] == 0 {
+            error_at("Modulo by zero", node)
+            return nullx
+        }
+        return mk_num(l[1] % r[1])
+    }
+    error_at("Unknown binop " + op, node)       # :584
+    return nullx
+}
+
+# :492-503. AND/OR short-circuit INSIDE the BinOp arm of evaluate, before
+# eval_binop is reached at all, and the short-circuit is observable: 7.4's
+# `false && undefinedVariable` is not an error, so the right side must not be
+# evaluated. Both arms answer with a BOOL (:497, :501, :503's is_truthy).
+func eval_and(l, node, env) {
+    if not is_truthy(l) {
+        return mk_false()                       # :497, the right side is never read
+    }
+    let r = eval_expr(node.right, env)
+    if signal_active() {
+        return nullx
+    }
+    return mk_bool(is_truthy(r))                # :498
+}
+
+func eval_or(l, node, env) {
+    if is_truthy(l) {
+        return mk_true()                        # :501
+    }
+    let r = eval_expr(node.right, env)
+    if signal_active() {
+        return nullx
+    }
+    return mk_bool(is_truthy(r))                # :502-503
+}
+
+# :504-512, the unary arm of evaluate. MINUS keeps the number's own kind, because
+# the arithmetic is the host's and -2 is an int in Python exactly as in the oracle.
+# An op that is neither MINUS nor NOT is the host's own :512, not a refusal.
+func eval_unary(node, env) {
+    let v = eval_expr(node.value, env)
+    if signal_active() {
+        return nullx
+    }
+    let op = node.op
+    if op == "MINUS" {                          # :506-509
+        if not is_num(v) {
+            error_at("Unary '-' needs a number", node)
+            return nullx
+        }
+        return mk_num(-v[1])
+    }
+    if op == "NOT" {                            # :510-511
+        return mk_bool(not is_truthy(v))
+    }
+    error_at("Unknown unary " + op, node)       # :512
+    return nullx
+}
+
+# eval_index (:625-634). Three messages and all three differ: the receiver's type,
+# the index's kind, the range. The receiver may be a string (:628), and an element
+# of a string is a one-character string (:634), so the two readers differ too.
+func eval_index(node, env) {
+    let arr = eval_expr(node.array, env)        # :626, the array first - 7.4
+    if signal_active() {
+        return nullx
+    }
+    let idx = eval_expr(node.index, env)        # :627
+    if signal_active() {
+        return nullx
+    }
+    let t = arr[0]
+    if t != "A" && t != "S" {                   # :628-629
+        error_at("Cannot index a " + type_name(arr), node)
+        return nullx
+    }
+    if not num_is_int(idx) {                    # :630-631, and a bool is not an int
+        error_at("Index must be an integer", node)
+        return nullx
+    }
+    let n = 0                                       # chosen by the tag: arr_len on a
+    if t == "A" {                                   # string box would read slot 2, which
+        n = arr_len(arr)                            # is the IndexError the host never
+    } else {                                        # raises because :632 asks len(arr)
+        n = len(arr[1])                             # of a value it already typed
+    }
+    let i = idx[1]
+    if i < 0 || i >= n {                        # :632-633
+        error_at("Index " + i + " out of range (length " + n + ")", node)
+        return nullx
+    }
+    if t == "A" {
+        return arr_get(arr, i)                  # already a box
+    }
+    return mk_str(arr[1][i])                    # :634 on a string
+}
+
+
+
+# ---- 7.2: the four statements I-M1 refused ----------------------------------
+# If (:313-317), While (:318-325), Loop (:326-336) and ForIn (:337-338, :386-406).
+# The loops are 7.2's translation: MountX has no try inside a loop body and no
+# do-while, so the pending-kind test is the guard the host gets from its exception,
+# and it comes FIRST - a break in the body must leave the loop without evaluating the
+# condition once more, because that read could itself raise and change the error.
+
+# :313-317. `elif node["else"]` is falsy-vs-missing, and parser.mx answers it with a
+# [] for the no-else case (parser.mx:705 through mk_if's else_b), so the port tests
+# emptiness rather than presence - the same answer the host gets from `[]` being
+# falsy. hasField stays reserved for the three places of 7.1 and this is not one.
+func exec_if(node, env) {
+    let c = eval_expr(node.condition, env)          # :314
+    if signal_active() {
+        return nullx
+    }
+    if is_truthy(c) {
+        exec_block(node.then, env)                  # :315
+        return nullx
+    }
+    if len(node.else_b) > 0 {                       # :316-317
+        exec_block(node.else_b, env)
+    }
+    return nullx
+}
+
+# :318-325, the first of 7.2's three uses of one idiom. The host absorbs Break in the
+# `except` and re-tests on Continue; the port's guard is the kind slot, read before
+# the condition on every trip. CONT clears and falls through to the re-test, which is
+# `except ContinueException: continue` (:324-325); BREAK falls out of the while and
+# clears here and nowhere else (:322-323); RET, THROW and ERROR are never touched, so
+# they keep unwinding - which is the host never catching them in a loop at all.
+func exec_while(node, env) {
+    while signal_kind() == CF_NONE() {              # 733's guard, kind first
+        let c = eval_expr(node.condition, env)      # :319
+        if signal_active() {
+            break
+        }
+        if not is_truthy(c) {
+            break
+        }
+        exec_block(node.body, env)                  # :321
+        if signal_kind() == CF_CONT() {             # :324-325, absorbed: re-test
+            clear_signal()
+        }
+    }
+    if signal_kind() == CF_BREAK() {                # :322-323, absorbed here
+        clear_signal()
+    }
+    return nullx
+}
+
+# :326-336. Two host-only details, both load-bearing: the count must be an int and
+# NOT a bool or `loop count must be an integer` (:328-329), and the range is
+# max(0, count) (:330), so a negative count runs zero times - it is not an error.
+func exec_loop(node, env) {
+    let count = eval_expr(node.count, env)          # :327
+    if signal_active() {
+        return nullx
+    }
+    if not num_is_int(count) {                      # :328, a bool is not tag N at all
+        error_at("loop count must be an integer", node)
+        return nullx
+    }
+    let n = count[1]
+    if n < 0 {                                      # :330's max(0, count)
+        n = 0
+    }
+    let i = 0
+    while i < n && signal_kind() == CF_NONE() {     # :331's range()
+        exec_block(node.body, env)                  # :332
+        if signal_kind() == CF_CONT() {             # :335-336
+            clear_signal()
+        }
+        i = i + 1
+    }
+    if signal_kind() == CF_BREAK() {                # :333-334
+        clear_signal()
+    }
+    return nullx
+}
+
+# exec_forin (:386-406). The one env per iteration (:391) is why a `let` in a for
+# body cannot leak into the next lap, and the two-variable form binds the INDEX first
+# (:393-394): var is the index, var2 the element, which is the opposite of what the
+# single-name shape suggests. Strings iterate by character (:388, :390) and a number
+# is the error on :389.
+func exec_forin(node, env) {
+    let it = eval_expr(node.iterable, env)          # :387
+    if signal_active() {
+        return nullx
+    }
+    let t = it[0]
+    if t != "A" && t != "S" {                       # :388-389
+        error_at("for...in expects an array or string", node)
+        return nullx
+    }
+    let n = 0                                       # two reads, chosen by the tag, for
+    if t == "A" {                                   # the same reason as elem below: a
+        n = arr_len(it)                             # slot-2 read on a string box is an
+    } else {                                        # IndexError at the host, and the
+        n = len(it[1])                              # port would die rather than report
+    }
+    let var2 = node.var2                         # :392, nullx for the one-name form
+    let i = 0
+    while i < n && signal_kind() == CF_NONE() {  # :390's enumerate
+        let elem = nullx                            # NOT one expression with a
+        if t == "A" {                               # placeholder: the initializer of a
+            elem = arr_get(it, i)                   # let RUNS on both paths, and an A
+        } else {                                    # box's slot 1 is its stamp, so
+            elem = mk_str(it[1][i])                 # `stamp[i]` would die at the host
+        }                                       # level before the if could pick
+        let e = iteration_env(env)                  # :391, one per lap
+        if var2 == nullx {
+            envDefine(e, node.var, elem)            # :396
+        } else {
+            envDefine(e, node.var, mk_num(i))       # :393, the index
+            envDefine(e, var2, elem)                # :394
+        }
+        exec_block(node.body, e)                    # :400
+        if signal_kind() == CF_CONT() {             # :403-404
+            clear_signal()
+        }
+        i = i + 1
+    }
+    if signal_kind() == CF_BREAK() {                # :401-402
+        clear_signal()
+    }
+    return nullx
+}
+
+# :411-430, the two assign targets I-M1 refused. The order is the host's: the target
+# object is evaluated and then the index (:419-420 - 7.4's fifth site), and the three
+# messages differ again (:421-426). An array target is mutated IN PLACE (:427), which
+# is 3.4's reference semantics arriving through the box's own slots. The DotAccess arm
+# waits for milestone 4 with the instances it needs.
+func exec_assign_target(t, value, env) {
+    let tt = t.kind
+    if tt == "DotAccess" {                          # :412-417
+        let obj = eval_expr(t.object, env)          # :413, the object BEFORE the field
+        if signal_active() {                        # write - 7.4's sixth site
+            return false
+        }
+        if tag_of(obj) == "O" {                     # :414-415, an in-place write on the
+            obj_set(obj, t.field, value)    # instance's own dict - no field check,
+            return true                     # so it may CREATE one (that is how
+        }                                    # init assigns this.x before any `let`)
+        error_at("Cannot assign to field of non-instance", t)   # :417, reachable
+        return false                                # without a class: `5.x = 1`
+    }
+    if tt != "Index" {                              # :429-430
+        error_at("Bad assign target " + tt, t)
+        return false
+    }
+    let arr = eval_expr(t.array, env)               # :419
+    if signal_active() {
+        return false
+    }
+    let idx = eval_expr(t.index, env)               # :420
+    if signal_active() {
+        return false
+    }
+    if arr[0] != "A" {                              # :421-422
+        error_at("Index assignment target is not an array", t)
+        return false
+    }
+    if not num_is_int(idx) {                        # :423-424
+        error_at("Array index must be an integer", t)
+        return false
+    }
+    let i = idx[1]
+    if i < 0 || i >= arr_len(arr) {                 # :425-426
+        error_at("Index " + i + " out of range (length " + arr_len(arr) + ")", t)
+        return false
+    }
+    arr_set(arr, i, value)                          # :427, in place
+    return true
+}
+
+# ---- 12.2 precursors: the registry, the chain, the method slot ---------------
+# Written now and not in milestone 4, because callFn's `super` binding (:883-890) and
+# the Super arm of eval_call (:862-871) both ask for them, and a call layer that
+# refuses them cannot express an inherited init at all. ClassDef stays refused, so on
+# a program without classes the registry stays empty and these three functions are
+# reached only from a test - which is how I-M1 shipped handle_import's module guard.
+
+let g_classes = newx Dict()      # self.classes (:120), filled by ClassDef in I-M4
+
+func define_class(name, node) {                  # :342
+    g_classes.set(name, node)
+    return node
+}
+
+func clear_classes() {                           # the probe's reset, nothing more
+    g_classes.clear()
+}
+
+# resolve_class (:434-449). Plain names check the REGISTRY first, so a local class
+# shadows a module class of the same name - the docstring's own claim, and the reason
+# the two arms are not one lookup. The dotted arm's try/except (:443-446) is the host
+# swallowing its own Undefined-variable raise; the port's equivalent is the exists
+# test, because envGet would write the slot and a resolver that answers "not found"
+# must not leave an error behind.
+func resolve_class(name, globals) {
+    if g_classes.has(name) {                     # :439-440
+        return g_classes.get(name)
+    }
+    let dot = -1                                 # :441-442, rsplit(".", 1)
+    let i = len(name) - 1
+    while i >= 0 {
+        if name[i] == "." {
+            dot = i
+            i = -1
+        } else {
+            i = i - 1
+        }
+    }
+    if dot < 0 {
+        return nullx
+    }
+    let mod_name = ""
+    let j = 0
+    while j < dot {
+        mod_name = mod_name + name[j]
+        j = j + 1
+    }
+    let cls_name = ""
+    let k = dot + 1
+    while k < len(name) {
+        cls_name = cls_name + name[k]
+        k = k + 1
+    }
+    if not envExists(globals, mod_name) {        # :443-446's except
+        return nullx
+    }
+    let mod = envGet(globals, mod_name)
+    if mod[0] == "U" && mod[4].has(cls_name) {   # :447-448, classes is slot 4
+        return mod[4].get(cls_name)
+    }
+    return nullx                                 # :449
+}
+
+# class_chain (:451-468): [klass, parent, grandparent, ...], with the two validations
+# the host does on the way - a node visited twice is a cycle (:458-459), a parent name
+# that resolves to nothing is `extends unknown class` (:466-467). The host tracks
+# identity with id(cur); the port tracks it with `==`, which for two Node instances is
+# values_equal's identity arm (:547) - the same claim, one level down.
+# A cycle is only possible through a forged registry: parse_class takes the parent
+# name from the source, so a class cannot extend itself by legal text. I6 is the case.
+func class_chain(klass, globals) {
+    let chain = []                               # :454
+    let seen = []                                # :455
+    let cur = klass                              # :456
+    while cur != nullx {
+        let s = 0
+        while s < len(seen) {                    # :458-459
+            if seen[s] == cur {
+                error_at("Inheritance cycle involving class '" + cur.name + "'", cur)
+                return []
+            }
+            s = s + 1
+        }
+        seen = seen + [cur]                      # :460
+        chain = chain + [cur]                    # :461
+        let pname = cur.parent                   # :462-464
+        if pname == nullx || pname == "" {
+            return chain
+        }
+        cur = resolve_class(pname, globals)      # :465
+        if cur == nullx {                        # :466-467
+            let last = chain[len(chain) - 1]
+            error_at("Class '" + last.name + "' extends unknown class '" + pname + "'", last)
+            return []
+        }
+    }
+    return chain
+}
+
+# find_method (:586-594), AGENTS's first invariant in nine lines: init is NOT in
+# methods, so a lookup that walks methods alone loses a class's constructor - the
+# historical "super has no method 'init'". Every method lookup in the port goes
+# through here, including the two of milestone 4.
+func find_method(klass, name) {                  # :589-590
+    if name == "init" && has_init(klass) {
+        return klass.init
+    }
+    let ms = klass.methods                       # :591-593
+    let i = 0
+    while i < len(ms) {
+        if ms[i].name == name {
+            return ms[i]
+        }
+        i = i + 1
+    }
+    return nullx                                 # :594
+}
+
+
+# ---- 7.5 / 8.3: callFn, and the counter that makes D-4 smaller --------------
+# I-M2's reason to exist. call_function (:874-902) is twenty-nine lines and every one
+# of them is load-bearing, which is why this function is transcribed line by line
+# rather than summarised: arity, the parent, `this` before params, `super` pointing at
+# the PARENT, the param zip, and the env restore that the host gets from `finally`.
+
+# 8.3's I-D3 constant - and the number 8.2 asked I-M2 to replace. 8.2 DERIVED 498 from
+# "5 port levels x 4.00 frames"; depth_probe.mx MEASURED the cliff, and the model was
+# wrong by 1.8x on the cheapest ladder and by more on every heavier one. Six shapes,
+# counter lifted, bisected to a step of one:
+#
+#   shape (one guest call per level)              deepest OK    first RecursionError
+#   return 1 + L0(k - 1)                               275                      276
+#   a ring of 5 functions per level         66 levels = 330 calls               335
+#   nine nested expressions (probe "x")                115                      120
+#   nineteen nested expressions (probe "y")             66                       67
+#   thirty-nine nested expressions (probe "z")          36                       37
+#   seventy-nine nested expressions                  under 20             not bisected
+#
+# The port's held ladder per guest call is SEVEN MountX frames deep (callFn -> execList
+# -> exec -> evalExpr -> evalExpr/evalArgs -> evalCall -> the next callFn), not the five
+# 8.2 counted, but the ladder is the cheap part. What moves the cliff is the guest's own
+# expression nesting, and it moves it FASTER than linearly: from nine nested expressions
+# to nineteen does not halve 115, it takes it to 66, and thirty-nine takes it to 36.
+# So the cliff is a property of the GUEST'S SHAPE, from 275 calls down to under twenty,
+# and it falls toward zero as the body gets heavier - which means NO constant is
+# universally below it, and the choice has to be made on a rule rather than on hope.
+#
+# The rule: sit below the cliff of every shape that could still have finished something,
+# and accept the escape for shapes whose own ceiling is already under the limit, because
+# those die either way. 400 broke that in the dangerous direction: it sat above EVERY
+# cliff in the table, so on all six shapes the Python RecursionError escaped through the
+# port's frames - past the four restore sites of 5.3, catchable by a guest tryx that
+# would be reading a counter left high. 100, the first retake, broke it the SAME way:
+# the nineteen-nested shape cliffs at
+# 66, so a guest that nests twenty expressions per call died the Python way with the
+# counter idle at 100. The limit is 40: below the nineteen-nested cliff by 39%, and the
+# only shapes that can still escape it are ones whose own ceiling (36 for the z shape)
+# is under 40 - a run those shapes get past 36 is a run no limit can give them. Lowering
+# further would buy the z shape and cost the y shape, which CAN run to 66: a limit of 36
+# would refuse a y guest at 40 that the port would otherwise have completed. That trade
+# is the whole of it, and 40 wins it - five times fbtest's deepest recursion (8) and
+# above the deepest recursion anywhere in this repo once g8 was dialed to 30 frames, so
+# the counter is the thing that fires for anything a person would write.
+#
+# The string stays the one 8.3 chose: RecursionError is a RuntimeError subclass, so
+# main.py:48-49 renders the host's cliff as `[Runtime] maximum recursion depth exceeded`
+# - the same bytes this writes. D-4's band is therefore the shape's own ceiling minus
+# 40, and above the host's cliff (2,490 calls in flight, measured at guest depth 498)
+# the two sides agree in text.
+let MAX_GUEST_DEPTH = 40
+let g_max_depth = MAX_GUEST_DEPTH   # module let for the same reason as g_kind: the
+let g_depth = 0                     # probe reads and lowers it to bisect the cliff
+
+func max_guest_depth() { return g_max_depth }
+func set_max_depth(n) { g_max_depth = n }
+func guest_depth() { return g_depth }
+
+# Absorb or propagate - 5.8's rule 5, written down once so the three loops of 7.2 and
+# this function cannot disagree about who owns which kind: RETURN is absorbed HERE and
+# by nothing else, BREAK and CONTINUE belong to the innermost loop, THROW and ERROR to
+# a catcher, and everything else unwinds to run_program and main.py's renderer.
+func call_fn(node, args, this_inst, klass, env) {   # :874
+    let params = node.params
+    if len(args) != len(params) {                    # :875-877, the port's OWN message
+        error_at("Function '" + node.name + "' expects " + len(params) + " args, got " + len(args), node)
+        return nullx                                 # restore site 1: nothing taken yet
+    }
+    g_depth = g_depth + 1
+    if g_depth > g_max_depth {                       # 8.3, I-D3
+        g_depth = g_depth - 1                        # restore site 2
+        error_at("maximum recursion depth exceeded", node)
+        return nullx
+    }
+    let saved = save_signal()                        # 5.8 rule 2: empty on the way in
+    let parent = call_env(node, root_env(env))       # :878-879, 4.3's __mod_env__
+    if this_inst != nullx {                          # :881-882, this BEFORE params
+        envDefine(parent, "this", this_inst)
+        if klass != nullx {
+            let pname = nullx
+            tryx {
+                pname = klass.parent                 # :883, klass.get("parent")
+            } catchx (e) {
+                pname = nullx
+            }
+            if pname != nullx && pname != "" {
+                let pk = resolve_class(pname, root_env(env))    # :884-885
+                if pk != nullx {                     # :886-890, klass is the PARENT
+                    envDefine(parent, "super", mk_superbox(this_inst, pk))
+                }
+            }
+        }
+    }
+    let i = 0
+    while i < len(params) {                          # :891-892, zipped in order
+        envDefine(parent, params[i], args[i])
+        i = i + 1
+    }
+    let prev_file = g_current_file
+    tryx {
+        if node.__file__ != nullx {
+            g_current_file = node.__file__
+        }
+    } catchx (e) {}
+    exec_list(node.body, parent)                     # :896-897
+    g_current_file = prev_file
+    g_depth = g_depth - 1                            # 5.3: the unwind passes too
+    if signal_kind() == CF_RET() {                   # :899-900
+        let out = mk_null()
+        if has_return_value() {
+            out = take_return_value()                # read, then the slot is emptied
+        }
+        restore_signal(saved)                        # restore site 3: rule 3
+        return out
+    }
+    return mk_null()                                 # :898's bare `return None` is the
+}                                                    # VALUE a call with no returnx
+#                                      answers with, and 9.5 says a value that crosses
+#                                      into guest view must be boxed: the raw host null
+#                                      here printed as [Runtime] Cannot index a null,
+#                                      because display reached for slot 0 of a None.
+#                                      The unwinding paths above are not values: an
+#                                      active signal stops every caller before it looks.
+
+
+# ---- 7.5: evalCall, dispatching on the callee's SHAPE ------------------------
+# :672-872. The callee is dispatched on the NODE's kind, not on a value, and the
+# natives are tested before the environment (:676 precedes :841) - AGENTS's invariant
+# that a user `func len` must not shadow the native. The four shapes are Ident,
+# DotAccess, Call and Super in the host's order, then `Cannot call <kind>`.
+func eval_call(callee, args, env) {
+    let ct = callee.kind
+    if ct == "Ident" {                               # :674-846
+        let name = callee.name
+        # I-M7's ONE exception to natives-before-environment (:676 precedes :841).
+        # `sys_args` is the single delegated native whose answer is a property of the
+        # LAYER rather than of the host, and a self-hosted layer therefore cannot be
+        # handed one: the port's own sys_args answers from g_guest_args, a register the
+        # PARENT filled, so a nested interp.mx reads its parent's argv and boots the
+        # wrong program. 9.6's rule says a delegated native answers the HOST's context;
+        # the bootstrap layer's answer is that a self-hosting layer must inject its own,
+        # and the injection is a real MountX function in the guest's environment that
+        # this check steps aside for. Every other native keeps the invariant - `func
+        # len` still cannot shadow len (I15) - and the step-aside is a single name.
+        if name == "sys_args" && envExists(env, "sys_args") {
+            let injected = envGet(env, "sys_args")
+            return call_fn(injected[2], args, nullx, nullx, env)
+        }
+        if is_native(name) {                         # :676, BEFORE the env lookup
+            return call_native(name, args, callee)
+        }
+        if not envExists(env, name) {                # :841, the host's env.get raise
+            error_at("Undefined variable '" + name + "'", callee)
+            return nullx
+        }
+        let fv = envGet(env, name)
+        if tag_of(fv) == "F" {                       # :842-843
+            return call_fn(fv[2], args, nullx, nullx, env)
+        }
+        if tag_of(fv) == "M" {                       # :844-845
+            return call_fn(fv[2], args, fv[3], fv[4], env)
+        }
+        error_at("'" + name + "' is not callable", callee)   # :846
+        return nullx
+    }
+    if ct == "DotAccess" {                           # :847-853
+        let bound = eval_dot(callee, env)
+        if signal_active() {
+            return nullx
+        }
+        if tag_of(bound) == "M" {                    # :849-850
+            return call_fn(bound[2], args, bound[3], bound[4], env)
+        }
+        if tag_of(bound) == "F" {                    # :851-852, a module function
+            return call_fn(bound[2], args, nullx, nullx, env)
+        }
+        error_at("'" + callee.field + "' is not callable", callee)   # :853
+        return nullx
+    }
+    if ct == "Call" {                                # :854-861, a call that returns a
+        let fv = eval_expr(callee, env)              # callable - evaluate, so the inner
+        if signal_active() {                         # args are evaluated first
+            return nullx
+        }
+        if tag_of(fv) == "F" {                       # :856-857
+            return call_fn(fv[2], args, nullx, nullx, env)
+        }
+        if tag_of(fv) == "M" {                       # :858-860
+            return call_fn(fv[2], args, fv[3], fv[4], env)
+        }
+        error_at("Call result is not callable", callee)          # :861
+        return nullx
+    }
+    if ct == "Super" {                               # :862-871
+        let sup = eval_expr(callee, env)
+        if signal_active() {
+            return nullx
+        }
+        if tag_of(sup) != "P" {                      # :865-867
+            error_at("'super(...)' can only be used inside a method of a class with a parent", callee)
+            return nullx
+        }
+        let chain = class_chain(sup[2], root_env(env))           # :868
+        if signal_active() {
+            return nullx
+        }
+        let i = 0
+        while i < len(chain) {                       # :869-870, nearest init wins
+            if has_init(chain[i]) {
+                return call_fn(chain[i].init, args, sup[1], chain[i], env)
+            }
+            i = i + 1
+        }
+        error_at("No init found in super classes for super(...)", callee)   # :871
+        return nullx
+    }
+    error_at("Cannot call " + ct, callee)                    # :872
+    return nullx
+}
+
+
+# eval_dot (:596-623). Milestone 2 owns the MODULE arm, because a module function is
+# reachable the moment calls exist and g6 calls one; the instance and super arms need
+# New and ClassDef, so they name the milestone instead of answering `Cannot access
+# field ... on object`, which is what the host prints for a value that cannot exist
+# yet. The refusals go through the channel, so they cannot be mistaken for a value.
+func eval_dot(node, env) {
+    let obj = eval_expr(node.object, env)            # :597
+    if signal_active() {
+        return nullx
+    }
+    let field = node.field                           # :598
+    if tag_of(obj) == "U" {                          # :599-606
+        if obj[3].has(field) {                       # funcs, slot 3
+            return obj[3].get(field)
+        }
+        if obj[4].has(field) {                       # classes, slot 4
+            return obj[4].get(field)
+        }
+        if obj[5].has(field) {                       # lets, slot 5 - the import-time
+            return obj[5].get(field)                 # snapshot, per AGENTS's last bullet
+        }
+        error_at("Module '" + obj[2] + "' has no attribute '" + field + "'", node)   # :606
+        return nullx
+    }
+    let t = tag_of(obj)
+    if t == "O" {                                     # :607-615, 12.3's second arm
+        # FIELDS FIRST, then the chain - so an instance field named like a method
+        # shadows it (:608-609). Nobody would guess that order and everybody would
+        # "tidy" it, which is what this comment is for.
+        if obj_has(obj, field) {
+            return obj_get(obj, field)
+        }
+        # The instance's class NAME goes back through the registry (:611), because
+        # 3.1 keeps the name in the box rather than the node. An instance of a
+        # class that is not in the registry - only a test can build one - walks an
+        # empty chain and lands on the host's own "not found on <name>" below.
+        let chain = class_chain(resolve_class(obj_name(obj), root_env(env)), root_env(env))   # :611
+        if signal_active() {                          # :611's two raises
+            return nullx
+        }
+        let i = 0
+        while i < len(chain) {
+            let m = find_method(chain[i], field)
+            if m != nullx {                            # :612-614
+                return mk_method(m, obj, chain[i])
+            }
+            i = i + 1
+        }
+        error_at("Field/method '" + field + "' not found on " + obj_name(obj), node)   # :615
+        return nullx
+    }
+    if t == "P" {                                     # :616-622, 12.3's third arm
+        let chain = class_chain(obj[2], root_env(env))          # :617, the DEFINING
+        if signal_active() {                          # class, not the receiver's
+            return nullx
+        }
+        let i = 0
+        while i < len(chain) {
+            let m = find_method(chain[i], field)     # NO field lookup here: a super
+            if m != nullx {                            # box has no fields (:617)
+                return mk_method(m, obj[1], chain[i])
+            }
+            i = i + 1
+        }
+        error_at("super has no method '" + field + "'", node)   # :622
+        return nullx
+    }
+    error_at("Cannot access field '" + field + "' on " + type_name(obj), node)   # :623
+    return nullx
+}
+
+# eval_new (:636-670), and the order is the transcription, not a style choice. The
+# class is resolved BEFORE the arguments are evaluated (:638-648 precedes :645), so
+# `newx Nope(1/0)` reports `Class 'Nope' not defined` and never reaches the division
+# - 7.4's fifth site, which is why I14 lists New as an I-M4 row.
+func eval_new(node, env) {
+    let globals = root_env(env)
+    let cname = node.class_name
+    let klass = nullx
+    if has_dot(cname) {                             # :637-643, newx module.Class(...)
+        let parts = split_dotted(cname)             # rsplit(".", 1) (:640)
+        let mod_name = parts[0]
+        let cls_name = parts[1]
+        # This arm uses self.globals.get (:641), NOT resolve_class - so an undefined
+        # module name RAISES `Undefined variable` here, where resolve_class's dotted
+        # arm catches and returns None (:443-446). The two answers differ, and the
+        # difference is observable, so it is transcribed rather than unified.
+        if not envExists(globals, mod_name) {
+            error_at("Undefined variable '" + mod_name + "'", node)
+            return nullx
+        }
+        let mod = envGet(globals, mod_name)
+        if tag_of(mod) != "U" || not mod[4].has(cls_name) {
+            error_at("Module '" + mod_name + "' has no class '" + cls_name + "'", node)   # :643
+            return nullx
+        }
+        klass = mod[4].get(cls_name)
+    } else {                                        # :645-649, a bare name
+        klass = resolve_class(cname, globals)
+        if klass == nullx {
+            error_at("Class '" + cname + "' not defined", node)      # :648
+            return nullx
+        }
+    }
+    let args = eval_args(node.args, env)            # :645, AFTER resolution
+    if signal_active() {
+        return nullx
+    }
+    let chain = class_chain(klass, globals)         # :647, validates parents+cycles
+    if signal_active() {
+        return nullx
+    }
+    # A fresh dict and a fresh stamp per New (:655-658): two instances of one class
+    # never share a fields dict, which is what makes I7c's isolation half hold.
+    let inst = mk_instance_named(klass.name)
+    # reversed(chain) - PARENT FIRST, so the child's field of the same name wins
+    # (:653-656). Each initialiser is evaluated in the CALLING env, per New, so a
+    # field reading a local works and a field initialised to [1,2] gives every
+    # instance its own array rather than one shared list.
+    let i = len(chain) - 1
+    while i >= 0 {
+        let fs = chain[i].fields
+        let j = 0
+        while j < len(fs) {
+            let fv = eval_expr(fs[j].value, env)
+            if signal_active() {
+                return nullx
+            }
+            obj_set(inst, fs[j].name, fv)
+            j = j + 1
+        }
+        i = i - 1
+    }
+    # The NEAREST init up the chain, not the class's own (:660-666), and callFn is
+    # handed init_class as the DEFINING class - so `super` inside an inherited init
+    # binds to the inheriting class's parent chain, not the definer's (12.2).
+    let init_class = nullx
+    let k = 0
+    while k < len(chain) {
+        if has_init(chain[k]) {
+            init_class = chain[k]
+            k = len(chain)
+        } else {
+            k = k + 1
+        }
+    }
+    if init_class != nullx {
+        call_fn(init_class.init, args, inst, init_class, env)   # :666, result dropped
+        if signal_active() {                    # an init that throws propagates out
+            return nullx                        # of New, exactly as it would (:666)
+        }
+    } else if len(args) > 0 {                   # :667-669, zero args is still fine
+        error_at("Class '" + klass.name + "' has no init but " + len(args) + " argument(s) were given", node)
+        return nullx
+    }
+    return inst
+}
+
+# eval_input (:520-524). Delegation, not a transcription: `inputx(p)` is itself an
+# expression the HOST evaluates (:521-524), so calling it in this file's own source
+# runs the host's input() - the same primitive eval_file_builtin delegates readx and
+# writex to, and the reason Input needs no new native. Two details ARE transcriptions:
+# the prompt goes through display (:523, not str), and the EOF text, which main.py
+# renders through its LAST format_error arm as "<class>: <msg>" rather than as a bare
+# message - raw_text alone would drop the "EOFError: " prefix and print a line the
+# oracle never prints. 10.3's determinism rule is the harness's half of this: the
+# corpus feeds both sides the same bytes, so a prompt that consumed a different number
+# of them on one side arrives as a diff instead of as a flake.
+func eval_input(node, env) {
+    let prompt = ""                               # :521
+    if has_prompt(node) {                         # :522, node.get("prompt")
+        let pv = eval_expr(node.prompt, env)
+        if signal_active() {
+            return nullx
+        }
+        prompt = display(pv)                      # :523, display and not str
+    }
+    let out = nullx
+    tryx {
+        out = mk_str(inputx(prompt))              # the host's input(), delegated
+    } catchx (e) {
+        set_signal(CF_EOF(), mk_str(raw_text(e)), node_line(node))   # :360's str(e);
+        return nullx                              # the KIND carries the rest, see above
+    }
+    return out
+}
+
+# node.get("prompt") is not None (:522). The parser always sets the key, so this arm
+# is reached only by a forged node - and it must answer the way the host's .get does
+# rather than dying on the read: 11.4's rule 1 is to mirror exactly where the host
+# reaches for .get and index everywhere else.
+func has_prompt(node) {
+    let found = false
+    tryx {
+        found = node.prompt != nullx
+    } catchx (e) {
+        found = false                     # no prompt slot at all -> :521's ""
+    }
+    return found
+}
+
+# input()'s EOF is the ONE error on this path that main.py renders differently
+# depending on whether a guest caught it, and the difference is not cosmetic:
+#
+#   caught    :359-360 hands catchx `str(e)`          -> "EOF when reading a line"
+#   uncaught  main.py:50-51 falls to its LAST arm,
+#             f"{e.__class__.__name__}: {e}"          -> "EOFError: EOF when..."
+#
+# One payload cannot be both, so the KIND carries the distinction and the payload
+# stays :360's str(e) - which is what a catcher must see. A sixth kind is the honest
+# encoding: 5.8's first five kinds are about CONTROL FLOW, and this is about how one
+# renders on two different paths, so it rides alongside them rather than inside them.
+# TryCatch absorbs it exactly as it absorbs ERROR (:356-357), because a guest
+# catching an EOF must get the message, not a kind it cannot name.
+
+# The shape test and the split eval_new needs from a dotted class name, kept as their
+# own functions because resolve_class's dotted arm needs the same split - duplicating
+# that loop inline is how two arms drift apart without anything failing.
+func has_dot(name) { return index_of_dot(name) >= 0 }
+
+# rsplit(".", 1) (:640): the index of the LAST dot, or -1 when there is none.
+func index_of_dot(name) {
+    let at = -1
+    let i = 0
+    while i < len(name) {
+        if name[i] == "." {
+            at = i
+        }
+        i = i + 1
+    }
+    return at
+}
+
+func split_dotted(name) {                 # ["mod", "Class"], split on the LAST dot
+    let dot = index_of_dot(name)
+    let mod_name = ""
+    let i = 0
+    while i < dot {
+        mod_name = mod_name + name[i]
+        i = i + 1
+    }
+    let cls_name = ""
+    let k = dot + 1
+    while k < len(name) {
+        cls_name = cls_name + name[k]
+        k = k + 1
+    }
+    return [mod_name, cls_name]
+}
+
+# :479-489. Both arms exist now because callFn is what BINDS them: before I-M2 neither
+# name could be in any chain. The `super` arm's second test (:487-488) is the host's
+# belt-and-braces - the env would hold a Python None, which here is a null BOX, and a
+# null box is what "no super" means in the port too (3.1's V3 readable null).
+func eval_this(node, env) {                          # :480-482
+    if not envExists(env, "this") {
+        error_at("'this' can only be used inside a method or init", node)
+        return nullx
+    }
+    return envGet(env, "this")
+}
+
+func eval_super(node, env) {                         # :483-489
+    if not envExists(env, "super") {
+        error_at("'super' can only be used inside a method of a class with a parent", node)
+        return nullx
+    }
+    let sup = envGet(env, "super")
+    if tag_of(sup) == "Z" {                          # :487-488
+        error_at("'super' used but this class has no parent", node)
+        return nullx
+    }
+    return sup
+}
+
+
+# ---- 9.2 / 9.3 / 9.6: the natives, delegated --------------------------------
+# Option 3 of 9.2: every native is the HOST's, called through the port's own MountX
+# syntax, so `time_now_ms` in a guest is the same Python function the oracle would have
+# run. What the port adds is the adapter of 9.3 - unbox, call, rebox - and the catcher
+# of 9.6, because a native's failure is a Python exception raised while the host is
+# running the PORT and would sail straight out of the process.
+
+# 9.1's census, seventeen names. Kept as one predicate so the check of 7.5 sits at the
+# host's position - before the environment lookup - instead of inlined into it.
+func is_native(name) {
+    if name == "len" || name == "time_now_ms" || name == "sleep_ms" || name == "sys_args" || name == "sys_exit" || name == "sys_exec" || name == "os_env" || name == "os_cwd" {
+        return true
+    }
+    if name == "os_listdir" || name == "os_sep" || name == "mx_version" || name == "math_floor" || name == "idiv" || name == "str_ord" || name == "str_chr" {
+        return true
+    }
+    if name == "db_open" || name == "db_close" || name == "db_exec" || name == "db_query" || name == "http_get" || name == "http_post" || name == "aot_get_prog" || name == "tcp_listen" || name == "tcp_accept" || name == "tcp_recv" || name == "tcp_send" || name == "tcp_close" || name == "tcp_connect" {
+        return true
+    }
+    return false
+}
+
+func native_names() {                    # the sweep's list, and I15's witness
+    return ["len", "time_now_ms", "sleep_ms", "sys_args", "sys_exit", "sys_exec", "os_env",
+            "os_cwd", "os_listdir", "os_sep", "mx_version", "math_floor", "idiv",
+            "str_ord", "str_chr", "db_open", "db_close", "db_exec", "db_query", "http_get", "http_post", "aot_get_prog",
+            "tcp_listen", "tcp_accept", "tcp_recv", "tcp_send", "tcp_close", "tcp_connect"]
+}
+
+# 9.3's step 1, deep by one array level at a time. Deep is what 9.3 asks for at
+# :797-799 and :819-821 (the db params get walked by sqlite) and at :921 (exportx hands
+# the value graph to json.dump); shallow would have been enough for len. Instances and
+# modules have no unboxing - the host would receive the port's own box array, which is
+# exactly the `[\"N\", 5]`-shaped lie 9.4 warns about. Refusing loudly is I-M5's I16
+# ticket, not a silent wrong byte.
+func unbox_val(b) {
+    let t = b[0]
+    if t == "Z" {
+        return nullx
+    }
+    if t == "B" || t == "N" || t == "S" {
+        return b[1]
+    }
+    if t == "A" {
+        let out = []
+        let i = 0
+        while i < len(b[2]) {
+            out = out + [unbox_val(b[2][i])]
+            i = i + 1
+        }
+        return out
+    }
+    # An instance, a module or a function cannot cross into json.dump as a value, and
+    # 9.4's warning is that handing the host the port's own box would write the
+    # `["N", 5]`-shaped lie. Refusing is right; refusing with the PORT's wording was the
+    # defect, and it is a defect no text-sweep can see, because this message is not in
+    # interpreter.py's raise list - json raises it one layer down (:922).
+    error_at(unserializable_text(b), nullx)
+    return nullx
+}
+
+# The message json.dump raises for a value it cannot encode, in the host's exact
+# spelling. `TypeError: Object of type MxInstance is not JSON serializable` reaches the
+# guest through main.py's LAST format_error arm (:50-51) as the message alone, so there
+# is no "TypeError:" prefix to reproduce - only the type name.
+#
+# The type name is NOT always the box's own tag, and the measured reason is worth
+# keeping: json walks a container before reporting, so a BoundMethod - which is a dict
+# holding `instance`, `klass` and `method` (:613-614) - is descended into, and the first
+# value it cannot encode is the INSTANCE inside it. `exportx(p, obj.m)` therefore
+# reports MxInstance, not dict, and a port that answered from the tag alone would print
+# "Object of type dict" on a line the oracle never prints. Same for a super box, whose
+# first unencodable value is its instance. Measured, not assumed - see g19.
+func unserializable_text(b) {
+    let t = b[0]
+    if t == "O" {
+        return "Object of type MxInstance is not JSON serializable"
+    }
+    if t == "U" {
+        return "Object of type MxModule is not JSON serializable"
+    }
+    if t == "M" || t == "P" {
+        return "Object of type MxInstance is not JSON serializable"
+    }
+    if t == "F" {
+        return "Object of type dict is not JSON serializable"
+    }
+    return "Object of type " + type_name(b) + " is not JSON serializable"
+}
+
+# 9.3's step 3, deep for db_query's rows (:822-827: lists of scalars, each element
+# having to come back boxed). The type test is the host's own typeofx rather than a
+# Python isinstance the port cannot reach, and bool comes before int because that is
+# the order type_name itself uses (:95-98) - 3.2's guard, one layer out.
+func rebox_val(r) {
+    let t = typeofx(r)
+    if t == "null" {
+        return mk_null()
+    }
+    if t == "bool" {
+        return mk_bool(r)
+    }
+    if t == "int" || t == "float" {
+        return mk_num(r)
+    }
+    if t == "string" {
+        return mk_str(r)
+    }
+    if t == "array" {
+        let out = []
+        let i = 0
+        while i < len(r) {
+            out = out + [rebox_val(r[i])]
+            i = i + 1
+        }
+        return mk_arr(out)
+    }
+    error_at("milestone 2 does not rebox native results of type " + t, nullx)
+    return nullx
+}
+
+func unbox_args(args) {                  # 9.3's step 1 over a whole list
+    # I-M7.1: the quiet unbox, and the reason it exists. `unbox_val` LOUDLY refuses an
+    # unboxable value, which is right for exportx and writex - 9.4 says refusing beats
+    # writing a lie. It is wrong HERE, because the HOST never unboxes at all: it guards
+    # on the raw value and then calls the native. So in the host there is no unbox step
+    # to speak up, only a guard with the message. The port's loud unbox was therefore
+    # writing a message the host never writes, one step BEFORE the guard that owns the
+    # real one - and when several arguments were refused, the last refusal won.
+    #
+    # So the adapter's unbox is quiet: it yields null and lets the GUARD speak. A native
+    # whose guard does not inspect that argument then hands the host a null, and the
+    # host's own native produces the host's own message - which is exactly the host's
+    # order, and the reason the crown's `len` failure disappeared once this was quiet.
+    let out = []
+    let i = 0
+    while i < len(args) {
+        out = out + [unbox_quiet(args[i])]
+        i = i + 1
+    }
+    return out
+}
+
+# unbox_val without the refusal message. Identical for every box it CAN encode - this
+# changes nothing that used to work - and null for one it cannot, where the caller
+# decides what that means. eval_file_builtin's arms keep calling unbox_val, because
+# there the port is the one refusing and 9.4's rule is the whole point.
+func unbox_quiet(b) {
+    let t = b[0]
+    if t == "Z" {
+        return nullx
+    }
+    if t == "B" || t == "N" || t == "S" {
+        return b[1]
+    }
+    if t == "A" {
+        let out = []
+        let i = 0
+        while i < len(b[2]) {
+            out = out + [unbox_quiet(b[2][i])]
+            i = i + 1
+        }
+        return out
+    }
+    return nullx
+}
+
+func raw_is_num(r) {                     # the host's is_num (:83), asked of the host
+    let t = typeofx(r)
+    return t == "int" || t == "float"    # "bool" is neither, exactly as :87 demands
+}
+
+func raw_is_str(r) {
+    return typeofx(r) == "string"
+}
+
+# 9.6's catcher, in the shape 9.6 gives it. TWO details carry the weight and both are
+# the doc's, not improvisation: the unbox and the guards run OUTSIDE the tryx, so a
+# defect in the port's own adapter stays a crash (5.6) instead of being laundered into a
+# plausible guest error - the blast radius is one host call and its rebox; and the
+# payload is the exception's STRING, because that is what :360 hands a guest catcher -
+# `readx: [Errno 2] ...` and not `OSError: readx: ...`.
+#
+# One claim of 9.3 does not survive contact with the language, and the correction is
+# worth more than the convenience it costs. 9.3 counted the arity and type guards as
+# free because the host's native raises them. That needs the port to be able to CALL the
+# native with the guest's argument list, and MountX has no splat: `len(a[0])` is one
+# argument by syntax, so a zero- or two-argument call cannot reach the native to be
+# refused by it. The port would die indexing a[0] and the catcher would report
+# `list index out of range` where the host says `len expects 1 argument`. So the ARITY
+# half, and the type half of the guards the host writes as one combined `if`
+# (`len(args) != 1 or not is_num(args[0])`), are TRANSCRIBED below in the host's words -
+# 11.3's sweep, seventeen short texts. `len`'s type half stays delegated (its message
+# names type_name of the value, which only the host can render), and every stateful
+# refusal - `idiv: division by zero`, `db_exec: unknown connection 3`, the sqlite and
+# OSError text - remains the host's own, which is most of what 9.3 was counting on.
+# The one text the port cannot reproduce is :360's `str(e) or e.__class__.__name__`
+# fallback for an empty message; no native in the table raises with one, so the gap is
+# recorded rather than pretended away.
+func call_native(name, args, node) {
+    let a = unbox_args(args)                          # 9.6: outside, deliberately
+    # I-M7.1: the BOXED args travel too. The host's guards test the RAW value
+    # (isinstance / is_num on the argument itself, :679-680 and its eleven
+    # siblings), so a guard whose message NAMES a type has to be able to ask what the
+    # argument was BEFORE unboxing erased it. Every other guard here tests the unboxed
+    # value and is unchanged by this; `len` is the one that needs the box.
+    if native_guard(name, a, node, args) {            # 9.3's correction, same position
+        return nullx
+    }
+    let out = nullx
+    tryx {
+        out = native_dispatch(name, a)                # 9.6's one host call and rebox
+    } catchx (e) {
+        error_at(raw_text(e), node)                   # :360's str(e)
+        return nullx
+    }
+    return out
+}
+
+# :360 gives a guest catcher a string, so the port's payload must be the same string and
+# not a repr. The typeofx test is the discriminator 9.5 allows internally: a raw host
+# string arrived from a Python exception, anything else is already a box.
+func raw_text(e) {
+    if typeofx(e) == "string" {
+        return e
+    }
+    return "" + e
+}
+
+
+
+# The transcribed half of 9.3's guard surface: true means a message was written and the
+# native must not be reached. Texts and test order copied from :678, :686, :692, :699,
+# :705, :711, :717, :723, :732, :738, :743, :749, :759, :772, :785, :807, :833.
+func native_guard(name, a, node, boxed) {
+    let n = len(a)
+    if name == "len" && n != 1 {                      # :677-678
+        error_at("len expects 1 argument", node)
+        return true
+    }
+    # I-M7.1: :679-680's TYPE arm, the only guard the port had not transcribed. It is
+    # also the only one that can be lost by UNBOXING, and that is the whole defect.
+    #
+    # The other twelve guards are safe by accident or by design: they test
+    # `raw_is_str`/`raw_is_num` on the ALREADY-UNBOXED value, and an unboxable value
+    # unboxes to null, which fails both - so their message survives. `len`'s arity arm
+    # tested nothing else, so a null sailed through to the host's own `len`, which
+    # raised `len expects a string or array, got null` and CLOBBERED the port's message
+    # with one the oracle never prints. The host checks isinstance on the RAW value and
+    # names Token; the port must ask the BOX, which is why this arm reads a[0] and not
+    # the unboxed slot. Measured on a Token, on both sides: got Token vs got null.
+    if name == "len" && tag_of(boxed[0]) != "S" && tag_of(boxed[0]) != "A" {
+        error_at("len expects a string or array, got " + type_name(boxed[0]), node)
+        return true
+    }
+    if name == "time_now_ms" && n != 0 {              # :685-686
+        error_at("time_now_ms expects 0 arguments", node)
+        return true
+    }
+    if name == "sleep_ms" {                           # :691-692
+        if n != 1 || not raw_is_num(a[0]) {
+            error_at("sleep_ms expects 1 number of milliseconds", node)
+            return true
+        }
+    }
+    if name == "sys_args" && n != 0 {                 # :698-699
+        error_at("sys_args expects 0 arguments", node)
+        return true
+    }
+    if name == "sys_exit" {                           # :704-705
+        if n != 1 || not raw_is_num(a[0]) {
+            error_at("sys_exit expects 1 numeric exit code", node)
+            return true
+        }
+    }
+    if name == "os_env" {                             # :710-711
+        if n != 1 || not raw_is_str(a[0]) {
+            error_at("os_env expects 1 string argument", node)
+            return true
+        }
+    }
+    if name == "os_cwd" && n != 0 {                   # :716-717
+        error_at("os_cwd expects 0 arguments", node)
+        return true
+    }
+    if name == "os_listdir" {                         # :722-723
+        if n != 1 || not raw_is_str(a[0]) {
+            error_at("os_listdir expects 1 string argument", node)
+            return true
+        }
+    }
+    if name == "os_sep" && n != 0 {                   # :731-732
+        error_at("os_sep expects 0 arguments", node)
+        return true
+    }
+    if name == "mx_version" && n != 0 {               # :737-738
+        error_at("mx_version expects 0 arguments", node)
+        return true
+    }
+    if name == "math_floor" {                         # :742-743
+        if n != 1 || not raw_is_num(a[0]) {
+            error_at("math_floor expects 1 number", node)
+            return true
+        }
+    }
+    if name == "idiv" {                               # :748-749
+        if n != 2 || not raw_is_num(a[0]) || not raw_is_num(a[1]) {
+            error_at("idiv expects 2 numbers", node)
+            return true
+        }
+    }
+    if name == "db_open" {                            # :758-759
+        if n != 1 || not raw_is_str(a[0]) {
+            error_at("db_open expects 1 string path", node)
+            return true
+        }
+    }
+    if name == "db_close" {                           # :771-772
+        if n != 1 || not raw_is_num(a[0]) {
+            error_at("db_close expects 1 connection id", node)
+            return true
+        }
+    }
+    if name == "db_exec" {                            # :784-785
+        if n < 2 || not raw_is_num(a[0]) || not raw_is_str(a[1]) {
+            error_at("db_exec expects (conn_id, sql, [params])", node)
+            return true
+        }
+    }
+    if name == "db_query" {                           # :806-807
+        if n < 2 || not raw_is_num(a[0]) || not raw_is_str(a[1]) {
+            error_at("db_query expects (conn_id, sql, [params])", node)
+            return true
+        }
+    }
+    if name == "http_get" {                           # :832-833
+        if n != 1 || not raw_is_str(a[0]) {
+            error_at("http_get expects 1 string argument", node)
+            return true
+        }
+    }
+    if name == "http_post" {
+        if n < 2 || n > 3 || not raw_is_str(a[0]) || not raw_is_str(a[1]) || (n == 3 && not raw_is_str(a[2])) {
+            error_at("http_post expects (url, body, [content_type])", node)
+            return true
+        }
+    }
+    if name == "sys_exec" {
+        if n != 1 || not raw_is_str(a[0]) {
+            error_at("sys_exec expects 1 command string", node)
+            return true
+        }
+    }
+    if name == "str_ord" {
+        if n != 1 || not raw_is_str(a[0]) || len(a[0]) != 1 {
+            error_at("str_ord expects 1 single-character string", node)
+            return true
+        }
+    }
+    if name == "str_chr" {
+        if n != 1 || not raw_is_num(a[0]) {
+            error_at("str_chr expects 1 integer", node)
+            return true
+        }
+        if a[0] < 0 || a[0] > 255 {
+            error_at("str_chr expects an integer in range 0..255", node)
+            return true
+        }
+    }
+    if name == "aot_get_prog" {
+        if n != 1 || not raw_is_str(a[0]) {
+            error_at("aot_get_prog expects 1 module name string", node)
+            return true
+        }
+    }
+    return false
+}
+
+
+# 6.3's shift, corrected by running it. 6.3 says the guest's list is "exactly one
+# shift", which is true of the invocation it priced (`main.py interp.mx prog.mx a b`).
+# It is not true of the one the gate uses: run_probe.mx is invoked as
+# `main.py run_probe.mx <port_dir> <guest>`, so the guest path sits at index 1 of the
+# port's argv and dropping one element would hand the guest its own filename - which is
+# exactly what the first I10-shaped probe did print, `["/tmp/smoke2.mx"]` against the
+# oracle's `[]`. The rule that holds for both is "everything AFTER the guest path", and
+# only the driver knows where that is. So the driver calls set_guest_args with the
+# tail, and the native answers with it: still the host's values, just shifted where the
+# information actually lives. Empty by default, which is what a guest run with no
+# arguments sees on both sides.
+let g_guest_args = []                  # RAW host list of strings, 9.5's internal half
+
+func set_guest_args(l) {
+    g_guest_args = l
+    return nullx
+}
+
+# The seventeen delegated calls: `the host's native, on unboxed args, result reboxed`,
+# nothing else. The argument count is spelled by MountX syntax - the reason the guard
+# above exists - so the two natives with an optional third argument (:791, :813) branch
+# on len(a), and sys_args answers from the driver's tail (6.3, corrected above).
+func native_dispatch(name, a) {
+    if name == "len" {                                # :676-681, the type refusal is
+        return rebox_val(len(a[0]))                   # the host's, and it names the type
+    }
+    if name == "time_now_ms" {                        # :684-688
+        return rebox_val(time_now_ms())
+    }
+    if name == "sleep_ms" {                           # :690-695
+        sleep_ms(a[0])
+        return mk_null()
+    }
+    if name == "sys_args" {                           # :697-701, via the driver's tail
+        return rebox_val(g_guest_args)
+    }
+    if name == "sys_exit" {                           # :703-707, SystemExit is a
+        sys_exit(a[0])                                # BaseException: it walks over the
+        return mk_null()                              # catcher, which is 6.3's claim
+    }
+    if name == "os_env" {                             # :709-713, null when unset
+        return rebox_val(os_env(a[0]))
+    }
+    if name == "os_cwd" {                             # :715-719
+        return rebox_val(os_cwd())
+    }
+    if name == "os_listdir" {                         # :721-728: sorted by the host, and
+        return rebox_val(os_listdir(a[0]))            # OSError arrives as RuntimeError
+    }
+    if name == "os_sep" {                             # :730-734
+        return rebox_val(os_sep())
+    }
+    if name == "mx_version" {                         # :736-739
+        return rebox_val(mx_version())
+    }
+    if name == "math_floor" {                         # :741-745
+        return rebox_val(math_floor(a[0]))
+    }
+    if name == "idiv" {                               # :747-755, `idiv: division by
+        return rebox_val(idiv(a[0], a[1]))            # zero` (:750-751) is the host's
+    }
+    if name == "db_open" {                            # :757-768
+        return rebox_val(db_open(a[0]))
+    }
+    if name == "db_close" {                           # :770-781
+        db_close(a[0])
+        return mk_null()
+    }
+    if name == "db_exec" {                            # :783-803
+        if len(a) > 2 {
+            return rebox_val(db_exec(a[0], a[1], a[2]))
+        }
+        return rebox_val(db_exec(a[0], a[1]))
+    }
+    if name == "db_query" {                           # :805-829, the deep rebox of 9.3
+        if len(a) > 2 {
+            return rebox_val(db_query(a[0], a[1], a[2]))
+        }
+        return rebox_val(db_query(a[0], a[1]))
+    }
+    if name == "http_get" {                           # :831-839
+        return rebox_val(http_get(a[0]))
+    }
+    if name == "http_post" {
+        if len(a) == 3 {
+            return rebox_val(http_post(a[0], a[1], a[2]))
+        }
+        return rebox_val(http_post(a[0], a[1]))
+    }
+    if name == "sys_exec" {
+        return rebox_val(sys_exec(a[0]))
+    }
+    if name == "str_ord" {
+        return rebox_val(str_ord(a[0]))
+    }
+    if name == "str_chr" {
+        return rebox_val(str_chr(a[0]))
+    }
+    if name == "aot_get_prog" {
+        return aot_get_prog(a[0])
+    }
+    if name == "tcp_listen" {
+        if len(a) == 2 {
+            return rebox_val(tcp_listen(a[0], a[1]))
+        }
+        return rebox_val(tcp_listen(a[0]))
+    }
+    if name == "tcp_accept" {
+        return rebox_val(tcp_accept(a[0]))
+    }
+    if name == "tcp_recv" {
+        return rebox_val(tcp_recv(a[0], a[1]))
+    }
+    if name == "tcp_send" {
+        return rebox_val(tcp_send(a[0], a[1]))
+    }
+    if name == "tcp_close" {
+        tcp_close(a[0])
+        return mk_null()
+    }
+    if name == "tcp_connect" {
+        return rebox_val(tcp_connect(a[0], a[1]))
+    }
+    error_at("native_dispatch: not a native: " + name, nullx)
+    return nullx
+}
+
+
+# ---- 12.1 / 4.3: the module loader ------------------------------------------
+# handle_import (:185-281) is the oracle and the port's biggest delegation: the
+# search path is the OS's, the read is the host's, the parse is parser.mx's. What
+# the port does own is the part milestone 1 exists for - mod_scope's parent (:243)
+# and the stamping (:257) - and 4.3's finding is that the stamp is a FIELD WRITE,
+# because a MountX instance accepts a field that was never declared, exactly as a
+# Python dict accepts a new key. So __mod_env__ lives on the node, as it does in
+# the oracle, and call_env reads it back inside a tryx because a read of a field
+# that was never written is the host's own miss (435), not a null.
+let g_imported = newx Dict()       # :186-188, the name set
+let g_modules = newx Dict()        # self.modules, kept for the probe to ask
+let g_script_dir = ""              # base 2 (:200-201), the program's directory
+let g_current_file = ""            # the active guest/module file path
+let g_port_dir = ""                # base 4's analogue: selfhost/ in the port,
+                                   # interpreter.py's directory in the oracle (D-1)
+let g_cwd = ""                     # base 3 (:202)
+let g_sep = "/"                    # os_sep(), set by set_program_dirs
+let g_subs = ["", "core", "data", "structs", "text", "math", "system"]   # :191
+
+func set_program_dirs(script_dir, port_dir) {
+    g_script_dir = script_dir
+    g_port_dir = port_dir
+    g_cwd = os_cwd()
+    g_sep = os_sep()
+}
+
+func add_base(bases, b) {
+    if b == "" {
+        return bases
+    }
+    bases = bases + [b]   # append by concat (:206-215 builds lists the same way);
+    return bases
+}
+
+func module_bases() {
+    let out = []
+    let env_std = ""
+    tryx {
+        env_std = os_env("MOUNTX_STD")
+    } catchx (e) {
+        env_std = ""
+    }
+    if env_std == nullx {
+        env_std = ""
+    }
+    out = add_base(out, env_std)               # :197-199
+    out = add_base(out, g_script_dir)          # :200-201
+    out = add_base(out, g_cwd)                 # :202
+    out = add_base(out, g_port_dir)            # :203
+    return out
+}
+
+func join2(a, b) {
+    if a == "" {
+        return b
+    }
+    let last = a[len(a) - 1]
+    if last == g_sep {
+        return a + b
+    }
+    return a + g_sep + b
+}
+
+# os.path.exists (:220-221), delegated: the port has no stat, so it asks the host
+# to list the parent directory and looks for the name in the listing. A directory
+# that cannot be listed is a directory with nothing in it, which is the same answer
+# as far as a search is concerned.
+func path_exists(path) {
+    let cut = -1
+    let i = len(path) - 1
+    while i >= 0 {
+        if path[i] == g_sep {
+            cut = i
+            i = -1
+        } else {
+            i = i - 1
+        }
+    }
+    let dir = ""
+    let name = ""
+    if cut < 0 {
+        dir = "."                              # :210 normpath's view of a bare name
+        name = path
+    } else {
+        let j = 0
+        while j < cut {
+            dir = dir + path[j]
+            j = j + 1
+        }
+        if dir == "" {
+            dir = g_sep                        # "/x.mx" has parent "/", not ""
+        }
+        let k = cut + 1
+        while k < len(path) {
+            name = name + path[k]
+            k = k + 1
+        }
+    }
+    if name == "" {
+        return false
+    }
+    let entries = nullx
+    tryx {
+        entries = os_listdir(dir)
+    } catchx (e) {
+        entries = nullx
+    }
+    if entries == nullx {
+        return false
+    }
+    let m = 0
+    while m < len(entries) {
+        if entries[m] == name {
+            return true
+        }
+        m = m + 1
+    }
+    return false
+}
+
+# :205-222, the candidate walk. Root-first, then sub-folder, then the bare name,
+# per base, in the base order; the dedupe of :216-222 is a list scan because the
+# host's `seen` set is over strings and MountX has no set.
+func candidate_path(base, root, sub, name) {
+    let p = base
+    if root != "" {
+        p = join2(p, root)
+    }
+    if sub != "" {
+        p = join2(p, sub)
+    }
+    return join2(p, name + ".mx")
+}
+
+func seen_in(list, s) {
+    let i = 0
+    while i < len(list) {
+        if list[i] == s {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+func module_path(name) {
+    let bases = module_bases()
+    let roots = ["stdlib", "libs", ""]
+    let tried = []
+    let bi = 0
+    while bi < len(bases) {
+        let ri = 0
+        while ri < len(roots) {
+            let si = 0
+            while si < len(g_subs) {
+                let p = candidate_path(bases[bi], roots[ri], g_subs[si], name)
+                if not seen_in(tried, p) {
+                    tried = tried + [p]
+                    if path_exists(p) {
+                        return p               # :220-222, first hit wins
+                    }
+                }
+                si = si + 1
+            }
+            ri = ri + 1
+        }
+        bi = bi + 1
+    }
+    return nullx
+}
+
+# The host wraps a headerless file before parsing it (compile_code, main.py:86-90:
+# wrap when the FIRST TOKEN is not MOUNTX). The port cannot ask parser.mx for the first
+# token's type without lexing twice, so it parses and retries - but the retry is
+# gated on the header complaint, and that gate is the whole point.
+#
+# I-M1 shipped this ungated, and the smoke test caught the shape: a file that HAS the
+# header and has a real syntax error later on (a `func len`, which the parser refuses
+# because LEN is a keyword) failed attempt one with the true message, then failed the
+# wrapped attempt with `Unexpected token MOUNTX` at line 2, and reported THAT. The host
+# would never reach the wrapped text, so the port printed a message about a header that
+# was there. Rule now: retry only when attempt one says the header is missing; a
+# missing unmountx is not a reason to wrap either, because main.py only looks at the
+# first token and the host answers that case with its own line.
+let g_parse_err = ""                 # module let for the same reason as g_kind: the
+
+func parse_src_safe(src) {           # driver reads it, and it is not a guest value
+    let prog = nullx
+    g_parse_err = ""
+    tryx {
+        prog = parse_src(src)
+    } catchx (e) {
+        g_parse_err = "" + e
+        prog = nullx
+    }
+    return prog
+}
+
+func header_complaint(err) {
+    return has_sub(err, "start with mountx")
+}
+
+func has_sub(s, needle) {
+    let i = 0
+    while i + len(needle) <= len(s) {
+        if s[i] == needle[0] {
+            let ok = true
+            let j = 1
+            while j < len(needle) {
+                if s[i + j] != needle[j] {
+                    ok = false
+                    j = len(needle)
+                }
+                j = j + 1
+            }
+            if ok {
+                return true
+            }
+        }
+        i = i + 1
+    }
+    return false
+}
+
+func parse_program(src) {
+    let prog = parse_src_safe(src)
+    if prog != nullx {
+        return prog
+    }
+    let err = g_parse_err
+    if not header_complaint(err) {
+        error_at(err, nullx)                  # the source already had the header: this
+        return nullx                          # IS the host's attempt and its message
+    }
+    prog = parse_src_safe("mountx\n" + src + "\nunmountx")
+    if prog == nullx {
+        # The message unprefixed, because that is what the host's
+        # `except Exception as e: run_catch(node, str(e))` (:358-359) hands a catchx
+        # around an importx. The uncaught path adds [Syntax], not [Runtime], and
+        # that difference is format_syntax's, not this one's.
+        error_at(g_parse_err, nullx)
+    }
+    return prog
+}
+
+func root_env(env) {                            # the host's self.globals
+    let e = env
+    while e[0] != nullx {
+        e = e[0]
+    }
+    return e
+}
+
+func module_let(mod, name) {                    # the lets snapshot slot (3.1's "U")
+    let d = mod[5]
+    return d.get(name)
+}
+
+func module_let_has(mod, name) {
+    let d = mod[5]
+    return d.has(name)
+}
+
+func fill_module(b, funcs, classes, lets) {     # 3.1's "U" slots, filled in place
+    b[3] = funcs
+    b[4] = classes
+    b[5] = lets
+    return b
+}
+
+# :258-261 spelled once, because the guard is the point of those three lines: the
+# host reaches into globals.values DIRECTLY (:258) so that a name already held by a
+# module object is left alone, and the module's own copy still goes into module_funcs
+# either way. That is AGENTS's historical "Cannot access field 'pairs_get' on
+# function" bug - a bare func in one file wiping the module object another file
+# imported - and the port has to keep the same test rather than a plain define.
+func define_module_func(globals, name, fv) {
+    let existing = nullx
+    if envExists(globals, name) {
+        existing = envGet(globals, name)
+    }
+    if existing == nullx || tag_of(existing) != "U" {
+        envDefine(globals, name, fv)
+        return "defined"
+    }
+    return "kept-module"
+}
+
+# handle_import (:185-281). The four kinds it handles - ClassDef, FuncDef, Import,
+# Let - are the WHOLE if-chain: the host has no else, so a Print at module top
+# level runs on neither side. I4d's module file leans on exactly that silence, and
+# it is the reason the loop below is a walk over kinds rather than an exec_list of
+# the whole body.
+func handle_import(name, env) {
+    let globals = root_env(env)
+    let imp = g_imported
+    if imp.has(name) {                     # :186-188
+        return nullx
+    }
+    imp.set(name, true)
+    let prog = nullx
+    tryx {
+        prog = aot_get_prog(name)
+    } catchx (e) {
+        prog = nullx
+    }
+    let path = ""
+    if prog == nullx {
+        path = module_path(name)
+        if path == nullx {
+            error_at("Module '" + name + "' not found.", nullx)   # :224, without the
+            return nullx                            # host's candidate list: 11.3 gap
+        }
+        let src = readx(path)                       # 9.2 delegation: the host reads it
+        prog = parse_program(src)
+        if signal_active() {
+            return nullx
+        }
+    } else {
+        path = "stdlib/" + name + ".mx"
+    }
+    if prog.kind != "Program" {
+        error_at("Expected Program node", prog)
+        return nullx
+    }
+    let funcs = newx Dict()                     # :237-239
+    let classes = newx Dict()
+    let lets = newx Dict()
+    let mod_scope = module_env(globals)         # :243 - 4.2's sixth constructor
+    let body = prog.body
+    let i = 0
+    while i < len(body) {
+        let st = body[i]
+        let k = st.kind
+        if k == "ClassDef" {                    # :249-255: the registry AND the module's own
+            st.__file__ = path
+            define_class(st.name, st)     # classes slot, so both `newx Kid()` and
+            classes.set(st.name, st)      # `newx mod.Kid()` resolve - and every
+            let ms = st.methods           # method/init is stamped with the module
+            let j = 0                     # scope, which is the whole reason a
+            while j < len(ms) {           # module method can read a module let
+                ms[j].__mod_env__ = mod_scope     # (:251-253)
+                ms[j].__file__ = path
+                j = j + 1
+            }
+            if has_init(st) {
+                st.init.__mod_env__ = mod_scope   # :254-255, init's own slot
+                st.init.__file__ = path
+            }
+        }
+        if k == "FuncDef" {                     # :256-261
+            st.__file__ = path
+            st.__mod_env__ = mod_scope          # :257, 4.3's field write
+            let fv = mk_func(st)                # ONE box for both homes: the host
+            define_module_func(globals, st.name, fv)   # :258-260, the module guard
+            funcs.set(st.name, fv)              # :261, into module_funcs either way
+        }
+        if k == "Import" {                      # :262-272, re-export by setdefault
+            handle_import(st.name, mod_scope)
+            if signal_active() {
+                return nullx
+            }
+            let sub = nullx
+            if envExists(globals, st.name) {
+                sub = envGet(globals, st.name)
+            }
+            if sub != nullx && tag_of(sub) == "U" {
+                let ks = sub[3].keys
+                let vs = sub[3].values
+                let j = 0
+                while j < len(ks) {
+                    if not funcs.has(ks[j]) {
+                        funcs.set(ks[j], vs[j])
+                    }
+                    j = j + 1
+                }
+            }
+        }
+        if k == "Let" {                         # :273-276 - evaluated HERE, not by
+            let v = eval_expr(st.value, mod_scope)    # exec, and never in globals
+            if signal_active() {
+                return nullx
+            }
+            envDefine(mod_scope, st.name, v)
+            lets.set(st.name, v)
+        }
+        i = i + 1
+    }
+    if len(funcs.keys) > 0 || len(classes.keys) > 0 || len(lets.keys) > 0 {   # :280-281
+        let mod = fill_module(mk_module(name), funcs, classes, lets)
+        envDefine(globals, name, mod)
+        g_modules.set(name, mod)
+    }
+    return nullx
+}
+
+
+# ---- 6: run ------------------------------------------------------------------
+# run (:286-299): hoist first, then run the rest, skipping what was hoisted. The
+# hoist is why a program can print a function defined forty lines below it, and
+# why a program's globals are never empty at the second loop.
+func run_program(ast) {
+    if ast.kind != "Program" {                  # :287-288
+        error_at("Expected Program node", ast)
+        return nullx
+    }
+    # :225 is `Environment()` - a FRESH env per call - so the env the guest runs in is
+    # created here and nowhere else. I-M7's bootstrap layer parks one in g_boot_globals
+    # when it has an argv injection to make; this is the only line of the transcription
+    # that knows the bootstrap layer exists, and it is one `or`.
+    let globals = global_env()
+    if g_boot_globals != nullx {
+        globals = g_boot_globals
+        g_boot_globals = nullx
+    }
+    let body = ast.body
+    let i = 0
+    while i < len(body) {                       # :289-293
+        let st = body[i]
+        if st.kind == "ClassDef" {                # :290-291, the first of the three
+            define_class(st.name, st)      # hoisted pairs, and the reason a program
+        }                                   # can use a class declared below it
+        if st.kind == "FuncDef" {
+            envDefine(globals, st.name, mk_func(st))
+        }
+        i = i + 1
+    }
+    let j = 0
+    while j < len(body) {                       # :294-299
+        let s = body[j]
+        if s.kind != "ClassDef" && s.kind != "FuncDef" {
+            exec(s, globals)
+            if signal_active() {
+                return globals                  # an unabsorbed signal: the probe
+            }                                   # reports it and stops
+        }
+        j = j + 1
+    }
+    return globals
+}
+
+
+# ---- main.py's uncaught renderer, transcribed (11.3) -------------------------
+# The host's die() prints one line to STDOUT and exits 1 (main.py:54-56), so an
+# uncaught error's text is part of the bytes under comparison - it is not a
+# diagnostic sitting off to one side. That makes this function observable, and it
+# is where 5.8's insistence on two kinds pays: THROW and ERROR collapse into one
+# line here if they are collapsed anywhere, and the line is wrong.
+func str_has_sub(s, sub) {
+    if sub == "" { return true }
+    if len(s) < len(sub) { return false }
+    let limit = len(s) - len(sub)
+    let i = 0
+    while i <= limit {
+        let j = 0
+        let matches = true
+        while j < len(sub) {
+            if s[i + j] != sub[j] {
+                matches = false
+                break
+            }
+            j = j + 1
+        }
+        if matches { return true }
+        i = i + 1
+    }
+    return false
+}
+
+func format_uncaught() {                       # main.py:42-52
+    let kind = signal_kind()
+    let line = signal_line()
+    let loc = ""
+    if line > 0 {
+        if g_current_file != "" && !str_has_sub(g_current_file, "_docs_verify") {
+            loc = "Line " + line + " in " + g_current_file + ": "
+        } else {
+            loc = "Line " + line + ": "
+        }
+    }
+    if kind == CF_RET() {
+        return "[Runtime] " + loc + "'return' used outside a function"        # main.py:45
+    }
+    if kind == CF_BREAK() || kind == CF_CONT() {
+        return "[Runtime] " + loc + "'break' or 'continue' used outside a loop"   # main.py:47
+    }
+    if kind == CF_THROW() {
+        return "[Runtime] " + loc + "Uncaught throwx: " + display(signal_payload())   # :44
+    }
+    if kind == CF_ERROR() {
+        return "[Runtime] " + loc + display(signal_payload())                # :48-50
+    }
+    if kind == CF_EOF() {
+        return "[Runtime] " + loc + "EOFError: " + display(signal_payload())
+    }
+    return ""
+}
+
+# Classify a failure that surfaced while preparing a guest: [Syntax] for a genuine parse
+# error, [Runtime] for anything else. main.py:38-40 labels a SyntaxError and nothing
+# else, and main.py's own run_file gets that distinction for free because Python raises
+# SyntaxError from compile and RuntimeError from run - the PORT has one channel for both
+# (5.8), so it has to ask the text.
+#
+# The question is answered by the message's own label, not by where it came from.
+# parser.mx's parse failures all open with "[Parser]" (its error(), :470) and the lexer
+# with "[Lexer]", and main.py:38-40 says a message that already opens with [ goes out
+# untouched - so those need no prefix at all. A message with no [ is a runtime failure
+# and gets main.py's "[Runtime] ". That is the host's rule transcribed, not a guess
+# about which call site we came from: the two disagree in exactly the case I-M7 hit.
+func render_parse_or_runtime(msg) {
+    if len(msg) > 0 {
+        if msg[0] == "[" {
+            return msg
+        }
+    }
+    return "[Runtime] " + msg
+}
+
+# main.py:38-40. The lexer and the parser label their own output, so a message
+# that already opens with [ goes out untouched; anything else is syntax.
+func format_syntax(msg) {
+    if len(msg) > 0 {
+        if msg[0] == "[" {
+            return msg
+        }
+    }
+    return "[Syntax] " + msg
+}
+
+# The bootstrap layer's pending globals env (I-M7). nullx means "the transcription
+# layer's own global_env(), untouched", which is every path except the bootstrap
+# driver's argv injection. This is the whole of the port's self-hosting machinery: one
+# slot, one assignment at the boundary, one ask in run_program.
+let g_boot_globals = nullx
+
+# The argv as an AST node list of STRING LITERALS, for the injected sys_args body.
+#
+# Raw strings, not boxes: the injected function is evaluated by whatever layer runs it,
+# and a literal node carries its own value. The delegated native returns BOXES because
+# it goes through rebox_val (9.3); a literal node needs no such round trip, and building
+# literals is what lets the function be a real MountX function rather than a value the
+# port smuggles in.
+func argv_nodes(argv) {
+    let out = []
+    let i = 0
+    while i < len(argv) {
+        out = out + [parser.mk_literal(argv[i], "STRING", 0)]
+        i = i + 1
+    }
+    return out
+}
+
+# ---- BOOTSTRAP DRIVER (not a transcription — the port's main()) -----------------
+# Everything above this line is a transcription of interpreter.py. Everything below is
+# NOT, and the line is drawn here deliberately rather than somewhere prettier.
+#
+# WHY IT EXISTS. The host's entry point is main.py, written in Python, and it does three
+# things the language cannot reach from a library: read argv, read the file, and decide
+# an exit code. A self-hosted interpreter that wants to be RUN has to do those three
+# things itself, in the language it is written in. Every self-hosted compiler and
+# interpreter has exactly this layer - a `main` that boots the thing the rest of the
+# file defines - and it is always the part with no counterpart in the system being
+# ported. Calling it a transcription would be a lie the file's own comments exist to
+# prevent, so it is labelled instead.
+#
+# WHAT IT IS NOT. It is not a copy of main.py. main.py's parse_args, its REPL, its
+# -e/--version/--help flags and its error formatter live on the HOST side of this
+# experiment and are deliberately out of scope: the port is an interpreter, not a
+# distribution. What the driver reproduces is the narrow contract the anchor needs -
+# `mountx <guest.mx>` runs a file and exits 0 or 1 with the uncaught line on stdout.
+#
+# WHY IT IS AT THE BOTTOM. Above it are definitions; below it is the only top-level
+# statement in the file. That is what makes the two layers separable by reading: the
+# transcription is everything above, the bootstrap is everything below, and a reviewer
+# can diff the boundary in one place.
+#
+# The argv shift here is NOT run_probe.mx's, and the difference is the trap. The two
+# invocations see different argv:
+#
+#   the port, directly:  main.py selfhost/interp.mx fbtest.mx
+#       main.py's run_file consumes sys.argv[1] as the SCRIPT (interp.mx), and
+#       sys_args() is argv[1:] (:697-701) computed AFTER that - so the port's own path
+#       is already gone and the GUEST is at index 0.
+#
+#   the parity corpus:   main.py run_probe.mx selfhost fbtest.mx
+#       sys.argv[1] is run_probe.mx, so sys_args() still carries run_probe's own path
+#       at 0, selfhost at 1 and the guest at 2 - which is why run_probe.mx skips THREE
+#       entries and this driver skips ZERO.
+#
+# Measured, not assumed: at the top level of interp.mx under `main.py selfhost/interp.mx
+# fbtest.mx`, sys_args() is ["fbtest.mx"]. The driver is the odd one out, and this
+# comment is here so the next reader does not "fix" it back to run_probe's shift.
+
+# The directory of a path, used for the port's base 4 (its own directory, :203) and
+# for the guest's script_dir. The host uses os.path.dirname; the port has no path
+# library, so this is the two-line loop run_probe.mx has always used - duplicated here
+# rather than shared, because run_probe.mx is a SEPARATE PROGRAM and importing a
+# constant out of it would make the driver depend on the parity harness.
+func driver_dir_of(path) {
+    let cut = -1
+    let i = len(path) - 1
+    while i >= 0 {
+        if path[i] == "/" {
+            cut = i
+            i = -1
+        } else {
+            i = i - 1
+        }
+    }
+    if cut < 0 {
+        return "."
+    }
+    if cut == 0 {
+        return "/"
+    }
+    let out = ""
+    let j = 0
+    while j < cut {
+        out = out + path[j]
+        j = j + 1
+    }
+    return out
+}
+
+# main.py's run_file, in the only dialect available here. Every branch is the host's:
+# the read, the script_dir assignment (:75), the compile, and run_ast's die (:60-63).
+func bootstrap_main(argv) {
+    # main.py:parse_args with no flags and a bare `mountx <file>`: the first argument
+    # is the program. No argument at all is a usage error, and main.py's own REPL is
+    # NOT reproduced here - an interpreter under test is not a REPL - so the port says
+    # so plainly rather than silently starting one.
+    if len(argv) < 1 {
+        printx("[Runtime] no guest program specified")
+        sys_exit(1)
+        return nullx
+    }
+    # the guest is argv[0] here - see the shift note above
+    let guest = argv[0]
+    g_current_file = guest
+    let guest_args = []
+    let k = 1
+    while k < len(argv) {
+        guest_args = guest_args + [argv[k]]
+        k = k + 1
+    }
+    set_guest_args(guest_args)                  # so the GUEST's sys_args() is right
+    # I-M7: inject THIS layer's argv as a real MountX function, so a guest that is
+    # itself an interpreter can read it. The guest's `sys_args()` call resolves to this
+    # function through the one step-aside in eval_call, not to the delegated native -
+    # see 9.6's "a delegated native answers the HOST's context".
+    #
+    # The injected body returns the GUEST'S OWN ARGS - the same list the host's
+    # sys_args would return for it (:697-701, argv after the program name). Not the
+    # guest path: a guest never sees its own filename, in the host or here, and an
+    # injection that included it would be a NEW divergence invented to fix an old one.
+    # That is what makes the two-layer case byte-identical to before rather than merely
+    # working, and it is why the three-layer case now works at all: the delegated
+    # native answered with the PARENT's tail and booted the wrong file.
+    g_boot_globals = global_env()
+    let injected = parser.mk_funcdef("sys_args", [], [
+        parser.mk_return(parser.mk_arrayliteral(argv_nodes(guest_args), 0), 0)], 0)
+    envDefine(g_boot_globals, "sys_args", mk_func(injected))
+    # base 2 is the GUEST's directory - main.py:75 sets script_dir from the program
+    # being run, which is fbtest.mx, not interp.mx. Base 4 (the port's own directory)
+    # is NOT available here: the host consumed the port's path before sys_args() ran,
+    # so this file does not know where it lives. "." is the honest answer, and the
+    # anchor does not need better - base 1 ($MOUNTX_STD) and base 2 (the guest's own
+    # directory) resolve every import fbtest.mx makes.
+    set_program_dirs(driver_dir_of(guest), ".")
+
+    let src = readx(guest)                      # 9.2 delegation, like run_probe.mx
+    if src == nullx {
+        # readx's own error is the host's and is what a guest would see; the host's
+        # run_file words its unreadable-file case differently (main.py:70-72), and
+        # matching that would mean rewriting a message the delegation already gives
+        # us correctly. Recorded rather than faked.
+        return nullx
+    }
+    let prog = parse_program(src)               # 12.1: the port parses with parser.mx
+    if signal_active() {
+        # [Syntax] only when the failure really is a parse failure. `parse_program`
+        # reports a syntax error by throwing parser.mx's "[Parser] ..." text, and a
+        # RUNTIME failure that happened while the source was being prepared - a nested
+        # import failing under a self-hosted layer, say - carries a different message.
+        # I-M7 found this by hitting it: the layer-3 crown reported
+        # "Object of type MxInstance is not JSON serializable", which is a runtime
+        # refusal, under a [Syntax] prefix. The classification is now asked of the
+        # text rather than assumed from where the error surfaced, and s49 pins both
+        # arms so neither can drift back.
+        printx(render_parse_or_runtime(display(signal_payload())))    # main.py:38-40
+        sys_exit(1)
+        return nullx
+    }
+    run_program(prog)                           # 6: run
+    if signal_active() {
+        printx(format_uncaught())               # main.py:53-56, on STDOUT
+        sys_exit(1)
+        return nullx
+    }
+    return nullx
+}
+
+# The top-level statement, and the only one in this file. Everything above defines it.
+bootstrap_main(sys_args())

@@ -1,0 +1,208 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# graph.mx - graph data structure with BFS, DFS, and shortest path (structs/)
+# Usage:
+#   importx graph
+#   let g = graph.create(false) # undirected
+#   g.add_edge("A", "B", 1)
+#   g.add_edge("B", "C", 2)
+#   g.bfs("A")                  # ["A", "B", "C"]
+#   g.shortest_path("A", "C")   # ["A", "B", "C"]
+
+importx dict
+importx queue
+importx stack
+
+classx Graph {
+    let directed = false
+    let _adj = nullx      # dict of node -> Dict(neighbor -> weight)
+    let _nodes = []
+
+    func init(is_directed) {
+        this.directed = is_directed == true
+        this._adj = newx dict.Dict()
+        this._nodes = []
+    }
+
+    func add_node(u) {
+        let key = "" + u
+        if !this._adj.has(key) {
+            this._adj.set(key, newx dict.Dict())
+            this._nodes = this._nodes + [u]
+        }
+        return this
+    }
+
+    func add_edge(u, v, weight) {
+        let w = weight
+        if w == nullx { w = 1 }
+        this.add_node(u)
+        this.add_node(v)
+
+        let u_key = "" + u
+        let v_key = "" + v
+
+        let u_edges = this._adj.get(u_key)
+        u_edges.set(v_key, w)
+
+        if !this.directed {
+            let v_edges = this._adj.get(v_key)
+            v_edges.set(u_key, w)
+        }
+        return this
+    }
+
+    func has_node(u) {
+        return this._adj.has("" + u)
+    }
+
+    func has_edge(u, v) {
+        let u_key = "" + u
+        if !this._adj.has(u_key) {
+            return false
+        }
+        let u_edges = this._adj.get(u_key)
+        return u_edges.has("" + v)
+    }
+
+    func edge_weight(u, v) {
+        let u_key = "" + u
+        if this._adj.has(u_key) {
+            let u_edges = this._adj.get(u_key)
+            if u_edges.has("" + v) {
+                return u_edges.get("" + v)
+            }
+        }
+        return nullx
+    }
+
+    func neighbors(u) {
+        let u_key = "" + u
+        if !this._adj.has(u_key) {
+            return []
+        }
+        let u_edges = this._adj.get(u_key)
+        return u_edges.keys
+    }
+
+    func nodes() {
+        return this._nodes
+    }
+
+    func bfs(start) {
+        let start_key = "" + start
+        if !this._adj.has(start_key) {
+            return []
+        }
+        let visited = newx dict.Dict()
+        let q = newx queue.Queue()
+        let order = []
+
+        q.enqueue(start_key)
+        visited.set(start_key, true)
+
+        while !q.is_empty() {
+            let curr = q.dequeue()
+            order = order + [curr]
+
+            let nbrs = this.neighbors(curr)
+            for nbr in nbrs {
+                if !visited.has(nbr) {
+                    visited.set(nbr, true)
+                    q.enqueue(nbr)
+                }
+            }
+        }
+        return order
+    }
+
+    func dfs(start) {
+        let start_key = "" + start
+        if !this._adj.has(start_key) {
+            return []
+        }
+        let visited = newx dict.Dict()
+        let st = newx stack.Stack()
+        let order = []
+
+        st.push(start_key)
+
+        while !st.is_empty() {
+            let curr = st.pop()
+            if !visited.has(curr) {
+                visited.set(curr, true)
+                order = order + [curr]
+
+                let nbrs = this.neighbors(curr)
+                # push in reverse order so first neighbor is visited first
+                let i = len(nbrs) - 1
+                while i >= 0 {
+                    let nbr = nbrs[i]
+                    if !visited.has(nbr) {
+                        st.push(nbr)
+                    }
+                    i = i - 1
+                }
+            }
+        }
+        return order
+    }
+
+    func shortest_path(start, target) {
+        let start_key = "" + start
+        let target_key = "" + target
+        if !this._adj.has(start_key) || !this._adj.has(target_key) {
+            return []
+        }
+        if start_key == target_key {
+            return [start_key]
+        }
+
+        # BFS shortest path tracking predecessors
+        let visited = newx dict.Dict()
+        let parent = newx dict.Dict()
+        let q = newx queue.Queue()
+
+        q.enqueue(start_key)
+        visited.set(start_key, true)
+        let found = false
+
+        while !q.is_empty() && !found {
+            let curr = q.dequeue()
+            let nbrs = this.neighbors(curr)
+            for nbr in nbrs {
+                if !visited.has(nbr) {
+                    visited.set(nbr, true)
+                    parent.set(nbr, curr)
+                    if nbr == target_key {
+                        found = true
+                        break
+                    }
+                    q.enqueue(nbr)
+                }
+            }
+        }
+
+        if !found {
+            return []
+        }
+
+        let path = []
+        let curr = target_key
+        while curr != nullx {
+            path = [curr] + path
+            if curr == start_key {
+                break
+            }
+            if parent.has(curr) {
+                curr = parent.get(curr)
+            } else {
+                curr = nullx
+            }
+        }
+        return path
+    }
+}
+
+func create(is_directed) {
+    return newx Graph(is_directed)
+}

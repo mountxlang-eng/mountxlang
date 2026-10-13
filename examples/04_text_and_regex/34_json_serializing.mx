@@ -1,0 +1,26 @@
+# examples/04_text_and_regex/34_json_serializing.mx
+# Serializing MountX objects and arrays into JSON strings
+
+mountx
+importx json
+importx dict
+
+# 1. Serializing simple and nested arrays
+let list_data = [1, 2, "three", true, nullx, [10, 20]]
+printx("Serialized array: " + json.stringify(list_data))
+
+# 2. Serializing a Dict instance
+let user = newx dict.Dict()
+user.set("id", 42)
+user.set("username", "ziad75")
+user.set("roles", ["admin", "developer"])
+user.set("verified", true)
+
+let user_json = json.stringify(user)
+printx("Serialized user Dict: " + user_json)
+
+# 3. Round-trip verify
+let parsed_back = json.parse(user_json)
+printx("Parsed back verify: " + parsed_back)
+
+unmountx

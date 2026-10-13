@@ -1,0 +1,20 @@
+# examples/03_math_and_algorithms/22_math_advanced.mx
+# Advanced math routines with mathfull
+
+mountx
+importx mathfull
+
+printx("idiv(17, 5): " + mathfull.idiv(17, 5))
+printx("floor(3.7): " + mathfull.floor(3.7))
+printx("ceil(3.2): " + mathfull.ceil(3.2))
+printx("round(3.5): " + mathfull.round(3.5))
+printx("sign(-99): " + mathfull.sign(-99))
+printx("gcd(54, 24): " + mathfull.gcd(54, 24))
+printx("lcm(12, 18): " + mathfull.lcm(12, 18))
+printx("sqrt(144.0): " + mathfull.sqrt(144.0))
+printx("is_prime(29): " + mathfull.is_prime(29))
+printx("is_prime(30): " + mathfull.is_prime(30))
+printx("to_base(255, 16): " + mathfull.to_base(255, 16))
+printx("sum_digits(12345): " + mathfull.sum_digits(12345))
+
+unmountx

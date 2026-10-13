@@ -1,0 +1,125 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# socket.mx - TCP Socket networking for MountX (system/)
+# Backed by native tcp_* builtins in host and native substrate.
+
+func listen(port, host) {
+    if host == nullx {
+        return tcp_listen(port, "0.0.0.0")
+    }
+    return tcp_listen(port, host)
+}
+
+func accept(server_fd) {
+    return tcp_accept(server_fd)
+}
+
+func recv(client_ref, max_len) {
+    let fd = client_ref
+    if typeofx(client_ref) == "array" {
+        fd = client_ref[0]
+    }
+    if max_len == nullx {
+        return tcp_recv(fd, 4096)
+    }
+    return tcp_recv(fd, max_len)
+}
+
+func send(client_ref, data) {
+    let fd = client_ref
+    if typeofx(client_ref) == "array" {
+        fd = client_ref[0]
+    }
+    return tcp_send(fd, data)
+}
+
+func close(client_ref) {
+    let fd = client_ref
+    if typeofx(client_ref) == "array" {
+        fd = client_ref[0]
+    }
+    return tcp_close(fd)
+}
+
+func connect(host, port) {
+    if host == nullx {
+        return tcp_connect("127.0.0.1", port)
+    }
+    return tcp_connect(host, port)
+}
+
+classx TcpServer {
+    func init(port, host) {
+        this.port = port
+        if host == nullx {
+            this.host = "0.0.0.0"
+        } else {
+            this.host = host
+        }
+        this.fd = nullx
+        this.start()
+    }
+
+    func start() {
+        if this.fd == nullx {
+            this.fd = tcp_listen(this.port, this.host)
+        }
+        return this
+    }
+
+    func accept() {
+        if this.fd == nullx {
+            this.start()
+        }
+        return tcp_accept(this.fd)
+    }
+
+    func close() {
+        if this.fd != nullx {
+            tcp_close(this.fd)
+            this.fd = nullx
+        }
+    }
+}
+
+classx TcpClient {
+    func init(host, port) {
+        if host == nullx {
+            this.host = "127.0.0.1"
+        } else {
+            this.host = host
+        }
+        this.port = port
+        this.fd = nullx
+    }
+
+    func connect() {
+        if this.fd == nullx {
+            this.fd = tcp_connect(this.host, this.port)
+        }
+        return this
+    }
+
+    func send(data) {
+        if this.fd == nullx {
+            this.connect()
+        }
+        return tcp_send(this.fd, data)
+    }
+
+    func recv(max_len) {
+        if this.fd == nullx {
+            this.connect()
+        }
+        if max_len == nullx {
+            return tcp_recv(this.fd, 4096)
+        }
+        return tcp_recv(this.fd, max_len)
+    }
+
+    func close() {
+        if this.fd != nullx {
+            tcp_close(this.fd)
+            this.fd = nullx
+        }
+    }
+}

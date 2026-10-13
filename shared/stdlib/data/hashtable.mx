@@ -1,0 +1,241 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# hashtable.mx - hash map with separate chaining and automatic rehashing
+# Keys: any value (stringified for hashing, compared with ==)
+
+classx HashTable {
+    let buckets = []
+    let count = 0
+
+    func init() {
+        let i = 0
+        while i < 16 {
+            this.buckets = this.buckets + [nullx]
+            i = i + 1
+        }
+    }
+
+    # code 0..94 for printable ASCII, 95 for anything else
+    func _char_code(ch) {
+        let table = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
+        let idx = this._index(table, ch)
+        if idx < 0 {
+            return 95
+        }
+        return idx
+    }
+
+    # local index_of so this file needs no imports
+    func _index(s, target) {
+        let n = len(s)
+        let m = len(target)
+        if m == 0 {
+            return 0
+        }
+        let i = 0
+        while i <= n - m {
+            let j = 0
+            let ok = true
+            while j < m {
+                if s[i + j] != target[j] {
+                    ok = false
+                    break
+                }
+                j = j + 1
+            }
+            if ok {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+
+    func _hash(key) {
+        let s = "" + key
+        let h = 7
+        let i = 0
+        while i < len(s) {
+            h = (h * 31 + this._char_code(s[i])) % 1000000007
+            i = i + 1
+        }
+        if h < 0 {
+            h = 0 - h
+        }
+        return h
+    }
+
+    func _bucket_of(key) {
+        return this._hash(key) % len(this.buckets)
+    }
+
+    func _rehash() {
+        let entries = this.entries()
+        let newb = []
+        let i = 0
+        while i < len(this.buckets) * 2 {
+            newb = newb + [nullx]
+            i = i + 1
+        }
+        this.buckets = newb
+        for p in entries {
+            let bi = this._hash(p[0]) % len(this.buckets)
+            let b = this.buckets[bi]
+            if b == nullx {
+                b = []
+            }
+            b = b + [p]
+            this.buckets[bi] = b
+        }
+    }
+
+    func put(key, val) {
+        if (this.count + 1) * 4 > len(this.buckets) * 3 {
+            this._rehash()
+        }
+        let bi = this._bucket_of(key)
+        let b = this.buckets[bi]
+        if b != nullx {
+            for p in b {
+                if p[0] == key {
+                    p[1] = val
+                    return this
+                }
+            }
+        } else {
+            b = []
+        }
+        b = b + [[key, val]]
+        this.buckets[bi] = b
+        this.count = this.count + 1
+        return this
+    }
+
+    func set(key, val) {
+        return this.put(key, val)
+    }
+
+    # nullx when absent (use has() or get_or_default to disambiguate)
+    func get(key) {
+        let b = this.buckets[this._bucket_of(key)]
+        if b == nullx {
+            return nullx
+        }
+        for p in b {
+            if p[0] == key {
+                return p[1]
+            }
+        }
+        return nullx
+    }
+
+    func get_or_default(key, d) {
+        let b = this.buckets[this._bucket_of(key)]
+        if b == nullx {
+            return d
+        }
+        for p in b {
+            if p[0] == key {
+                return p[1]
+            }
+        }
+        return d
+    }
+
+    func has(key) {
+        let b = this.buckets[this._bucket_of(key)]
+        if b == nullx {
+            return false
+        }
+        for p in b {
+            if p[0] == key {
+                return true
+            }
+        }
+        return false
+    }
+
+    # true if the key existed
+    func remove(key) {
+        let bi = this._bucket_of(key)
+        let b = this.buckets[bi]
+        if b == nullx {
+            return false
+        }
+        let nb = []
+        let found = false
+        for p in b {
+            if p[0] == key {
+                found = true
+            } else {
+                nb = nb + [p]
+            }
+        }
+        if found {
+            this.buckets[bi] = nb
+            this.count = this.count - 1
+        }
+        return found
+    }
+
+    func size() {
+        return this.count
+    }
+
+    func is_empty() {
+        return this.count == 0
+    }
+
+    func clear() {
+        this.buckets = []
+        this.count = 0
+        let i = 0
+        while i < 16 {
+            this.buckets = this.buckets + [nullx]
+            i = i + 1
+        }
+    }
+
+    func put_all(pairs) {
+        for p in pairs {
+            this.put(p[0], p[1])
+        }
+        return this
+    }
+
+    func keys() {
+        let out = []
+        for b in this.buckets {
+            if b != nullx {
+                for p in b {
+                    out = out + [p[0]]
+                }
+            }
+        }
+        return out
+    }
+
+    func values() {
+        let out = []
+        for b in this.buckets {
+            if b != nullx {
+                for p in b {
+                    out = out + [p[1]]
+                }
+            }
+        }
+        return out
+    }
+
+    # [[key, value], ...] in no particular order
+    func entries() {
+        let out = []
+        for b in this.buckets {
+            if b != nullx {
+                for p in b {
+                    out = out + [p]
+                }
+            }
+        }
+        return out
+    }
+}

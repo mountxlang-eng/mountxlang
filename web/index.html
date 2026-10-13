@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MountX WebAssembly Playground — Run MountX in Browser</title>
+    <meta name="description" content="Official MountX WebAssembly in-browser playground. Write, run, and benchmark MountX code directly in your browser with pure client-side execution.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0c0e14;
+            --bg-surface: #141824;
+            --bg-elevated: #1a2030;
+            --bg-border: #262f44;
+            --accent-primary: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.35);
+            --accent-green: #10b981;
+            --accent-green-glow: rgba(16, 185, 129, 0.3);
+            --accent-amber: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --text-dim: #64748b;
+            --code-font: 'Fira Code', monospace;
+            --sans-font: 'Inter', sans-serif;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: var(--sans-font);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Top Navigation Header */
+        header {
+            background: linear-gradient(180deg, rgba(20, 24, 36, 0.95) 0%, rgba(12, 14, 20, 0.95) 100%);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--bg-border);
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 50;
+        }
+
+        .brand-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .brand-logo {
+            width: 34px;
+            height: 34px;
+            background: linear-gradient(135deg, #2563eb, #38bdf8);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 19px;
+            color: white;
+            box-shadow: 0 0 16px var(--accent-glow);
+        }
+
+        .brand-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .wasm-badge {
+            background: rgba(139, 92, 246, 0.15);
+            border: 1px solid rgba(139, 92, 246, 0.4);
+            color: #c084fc;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 20px;
+            letter-spacing: 0.3px;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .select-preset {
+            background: var(--bg-surface);
+            color: var(--text-main);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-sm);
+            padding: 7px 12px;
+            font-size: 13px;
+            font-family: var(--sans-font);
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .select-preset:hover, .select-preset:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .btn-run {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            padding: 8px 18px;
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            box-shadow: 0 0 14px var(--accent-green-glow);
+            transition: all 0.2s ease;
+        }
+
+        .btn-run:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+        }
+
+        .btn-run:active {
+            transform: translateY(0);
+        }
+
+        .btn-clear {
+            background: var(--bg-surface);
+            color: var(--text-muted);
+            border: 1px solid var(--bg-border);
+            border-radius: var(--radius-sm);
+            padding: 7px 14px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-clear:hover {
+            color: var(--text-main);
+            border-color: var(--text-dim);
+        }
+
+        /* Workspace Grid */
+        .workspace {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background-color: var(--bg-border);
+            height: calc(100vh - 86px);
+            overflow: hidden;
+        }
+
+        .pane {
+            background-color: var(--bg-base);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .pane-header {
+            background-color: var(--bg-surface);
+            padding: 8px 16px;
+            border-bottom: 1px solid var(--bg-border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .pane-meta {
+            font-size: 11px;
+            color: var(--text-dim);
+            font-family: var(--code-font);
+        }
+
+        /* Editor Section */
+        .editor-container {
+            flex: 1;
+            display: flex;
+            position: relative;
+            background-color: #0d1117;
+            overflow: hidden;
+        }
+
+        .line-numbers {
+            width: 48px;
+            background-color: #0b0e14;
+            color: #4b5563;
+            font-family: var(--code-font);
+            font-size: 13px;
+            line-height: 22px;
+            padding: 16px 8px 16px 0;
+            text-align: right;
+            user-select: none;
+            border-right: 1px solid #1e2433;
+            overflow: hidden;
+        }
+
+        #code-editor {
+            flex: 1;
+            background: transparent;
+            color: #e2e8f0;
+            font-family: var(--code-font);
+            font-size: 13px;
+            line-height: 22px;
+            padding: 16px 16px;
+            border: none;
+            outline: none;
+            resize: none;
+            white-space: pre;
+            overflow: auto;
+            tab-size: 4;
+            caret-color: #38bdf8;
+        }
+
+        /* Terminal Output Section */
+        .terminal-container {
+            flex: 1;
+            background-color: #07090e;
+            padding: 16px;
+            font-family: var(--code-font);
+            font-size: 13px;
+            line-height: 22px;
+            overflow-y: auto;
+            color: #a7f3d0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .term-line {
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .term-err {
+            color: #f87171;
+            font-weight: 500;
+        }
+
+        .term-sys {
+            color: #38bdf8;
+        }
+
+        .term-dim {
+            color: #64748b;
+        }
+
+        /* Bottom Status Footer */
+        footer {
+            background-color: #090b10;
+            border-top: 1px solid var(--bg-border);
+            padding: 6px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-dim);
+            z-index: 50;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+
+        @media (max-width: 900px) {
+            .workspace {
+                grid-template-columns: 1fr;
+                grid-template-rows: 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand-container">
+            <div class="brand-logo">M</div>
+            <div class="brand-title">
+                MountX
+                <span class="wasm-badge">WASM 32-bit</span>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <select id="preset-selector" class="select-preset" title="Choose Sample Code">
+                <option value="fib">Preset: Fibonacci & Recursion</option>
+                <option value="oop">Preset: Classes & Inheritance</option>
+                <option value="dict">Preset: Maps & Dictionaries (dict.Dict)</option>
+                <option value="err">Preset: Error Handling (tryx / catchx)</option>
+                <option value="math">Preset: Mathematics & Primes</option>
+            </select>
+
+            <button id="btn-clear" class="btn-clear">Clear Terminal</button>
+            <button id="btn-run" class="btn-run" title="Run (Ctrl+Enter)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Run Code
+            </button>
+        </div>
+    </header>
+
+    <main class="workspace">
+        <section class="pane">
+            <div class="pane-header">
+                <span>Code Editor (MountX)</span>
+                <span id="editor-meta" class="pane-meta">Lines: 12</span>
+            </div>
+            <div class="editor-container">
+                <div id="line-numbers" class="line-numbers">1</div>
+                <textarea id="code-editor" spellcheck="false" placeholder="Write MountX code here..."></textarea>
+            </div>
+        </section>
+
+        <section class="pane">
+            <div class="pane-header">
+                <span>Interactive Terminal</span>
+                <span id="exec-status" class="pane-meta">Runtime: Ready</span>
+            </div>
+            <div id="terminal" class="terminal-container">
+                <div class="term-line term-sys">MountX WebAssembly Substrate v1.1.0 Loaded.</div>
+                <div class="term-line term-dim">Pure client-side execution active. Press 'Run Code' or Ctrl+Enter.</div>
+                <div class="term-line">----------------------------------------------------</div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="status-badge">
+            <div id="status-indicator" class="status-dot"></div>
+            <span id="wasm-status-text">WebAssembly Core Initialized</span>
+        </div>
+        <div>MountX © 2026-2027 Ziad Mohsin • Fast, Pure, Dynamic Language</div>
+    </footer>
+
+    <script>
+        // Preset MountX Programs
+        const PRESETS = {
+            fib: `mountx
+# 1. Fibonacci Sequence & Recursion
+func fib(n) {
+    if (n <= 1) {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+printx("Calculating Fibonacci Sequence:")
+let i = 0
+while (i < 12) {
+    printx("fib(" + i + ") = " + fib(i))
+    i = i + 1
+}
+printx("Completed successfully!")
+unmountx`,
+
+            oop: `mountx
+# 2. Object-Oriented Programming & Inheritance
+classx Animal {
+    let name = ""
+    func init(name) {
+        this.name = name
+    }
+    func sound() {
+        return "Generic sound"
+    }
+}
+
+classx Dog extends Animal {
+    let breed = ""
+    func init(name, breed) {
+        this.name = name
+        this.breed = breed
+    }
+    func sound() {
+        return "Woof woof!"
+    }
+}
+
+let d = newx Dog("Rex", "German Shepherd")
+printx(d.name + " (" + d.breed + ") says: " + d.sound())
+unmountx`,
+
+            dict: `mountx
+importx dict
+
+# 1. Key-Value Map using Dict
+let user = newx Dict()
+user.set("username", "ziad")
+user.set("role", "admin")
+user.set("active", true)
+
+printx("User role: " + user.get("role"))
+printx("Is active? " + user.get("active"))
+
+# 2. Data transformation and accumulation
+let numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+let sum = 0
+let squares = []
+
+for item in numbers {
+    sum = sum + item
+    squares = squares + [item * item]
+}
+
+printx("Original numbers:")
+printx(numbers)
+printx("Sum of items: " + sum)
+printx("Squared numbers:")
+printx(squares)
+unmountx`,
+
+            err: `mountx
+# 4. Error Handling & Exceptions
+func divide(a, b) {
+    if (b == 0) {
+        throwx "DivisionByZeroError: denominator cannot be zero"
+    }
+    return a / b
+}
+
+tryx {
+    printx("100 / 4 = " + divide(100, 4))
+    printx("Attempting to divide by 0...")
+    divide(100, 0)
+} catchx (err) {
+    printx("Caught expected error: " + err)
+}
+unmountx`,
+
+            math: `mountx
+# 5. Prime Numbers Generator
+func is_prime(n) {
+    if (n <= 1) { return false }
+    let i = 2
+    while (i * i <= n) {
+        if (n % i == 0) { return false }
+        i = i + 1
+    }
+    return true
+}
+
+let primes = []
+let i = 0
+while (i < 30) {
+    if (is_prime(i)) {
+        primes = primes + [i]
+    }
+    i = i + 1
+}
+printx("Primes up to 30:")
+printx(primes)
+unmountx`
+        };
+
+        const editor = document.getElementById('code-editor');
+        const lineNums = document.getElementById('line-numbers');
+        const terminal = document.getElementById('terminal');
+        const editorMeta = document.getElementById('editor-meta');
+        const execStatus = document.getElementById('exec-status');
+        const presetSelect = document.getElementById('preset-selector');
+        const btnRun = document.getElementById('btn-run');
+        const btnClear = document.getElementById('btn-clear');
+
+        // Line number tracking
+        function updateLineNumbers() {
+            const lines = editor.value.split('\n').length;
+            lineNums.innerHTML = Array.from({ length: lines }, (_, i) => i + 1).join('<br>');
+            editorMeta.textContent = `Lines: ${lines}`;
+        }
+
+        editor.addEventListener('input', updateLineNumbers);
+        editor.addEventListener('scroll', () => {
+            lineNums.scrollTop = editor.scrollTop;
+        });
+
+        // Tab key handling in textarea
+        editor.addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const start = editor.selectionStart;
+                const end = editor.selectionEnd;
+                editor.value = editor.value.substring(0, start) + "    " + editor.value.substring(end);
+                editor.selectionStart = editor.selectionEnd = start + 4;
+                updateLineNumbers();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                runCode();
+            }
+        });
+
+        // Preset selection
+        presetSelect.addEventListener('change', (e) => {
+            if (PRESETS[e.target.value]) {
+                editor.value = PRESETS[e.target.value];
+                updateLineNumbers();
+            }
+        });
+
+        // Clear terminal
+        btnClear.addEventListener('click', () => {
+            terminal.innerHTML = '<div class="term-line term-dim">Terminal cleared.</div>';
+        });
+
+        function appendOutput(text, isErr = false) {
+            const line = document.createElement('div');
+            line.className = 'term-line' + (isErr ? ' term-err' : '');
+            line.textContent = text;
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // WebAssembly Runtime Execution Hook
+        function runCode() {
+            const code = editor.value;
+            if (!code.trim()) return;
+
+            appendOutput(`> Running MountX snippet...`, false);
+            execStatus.textContent = 'Executing...';
+            const startTime = performance.now();
+
+            try {
+                if (window.Module && window.Module.ccall) {
+                    // Call C exported WebAssembly function
+                    window.Module.ccall('mountx_run', 'number', ['string'], [code]);
+                } else if (window.MountXFallback) {
+                    window.MountXFallback.run(code, appendOutput);
+                } else {
+                    appendOutput("⚠️ MountX WebAssembly engine is not ready or blocked by browser security (file://).", true);
+                    appendOutput("👉 Run via HTTP server: ./mxpm playground   (or python3 -m http.server 8088 --directory web)", false);
+                    appendOutput("👉 Then open: http://localhost:8088 in your browser.", false);
+                }
+                const elapsed = (performance.now() - startTime).toFixed(1);
+                execStatus.textContent = window.Module ? `Done (${elapsed} ms)` : 'Waiting for Engine';
+            } catch (err) {
+                appendOutput(`[Runtime Exception] ${err.message}`, true);
+                execStatus.textContent = 'Execution failed';
+            }
+        }
+
+        // Lightweight browser AST Evaluator fallback if WASM Module is still initializing
+        function simulateEvaluation(src) {
+            // Evaluates pure standard MountX expressions in browser sandbox
+            const lines = src.split('\n');
+            for (let l of lines) {
+                let trimmed = l.trim();
+                if (trimmed.startsWith('printx(') && trimmed.endsWith(')')) {
+                    let inside = trimmed.slice(7, -1);
+                    try {
+                        let res = eval(inside.replace(/false/g, 'false').replace(/true/g, 'true'));
+                        appendOutput(String(res));
+                    } catch (_) {
+                        appendOutput(inside);
+                    }
+                }
+            }
+        }
+
+        btnRun.addEventListener('click', runCode);
+
+        // Initial setup
+        editor.value = PRESETS.fib;
+        updateLineNumbers();
+
+        // Initialize WebAssembly engine
+        if (typeof createMountX === 'function') {
+            createMountX({
+                print: (text) => appendOutput(text, false),
+                printErr: (text) => appendOutput(text, true)
+            }).then((mod) => {
+                window.Module = mod;
+                document.getElementById('status-indicator').style.backgroundColor = '#10b981';
+                document.getElementById('status-indicator').style.boxShadow = '0 0 10px #10b981';
+                document.getElementById('wasm-status-text').textContent = 'MountX WebAssembly v1.1.0 (Native Core Live)';
+                document.getElementById('exec-status').textContent = 'Engine Ready';
+                appendOutput("[System] MountX WebAssembly engine successfully initialized and ready.", false);
+            }).catch((err) => {
+                console.warn("WASM init note:", err);
+            });
+        }
+    </script>
+    <script src="mountx.js"></script>
+    <script>
+        if (window.location.protocol === 'file:') {
+            appendOutput("⚠️ [Browser Security Policy] Page opened via 'file://' protocol.", true);
+            appendOutput("Modern browsers block fetching .wasm binaries directly from local disk (CORS).", true);
+            appendOutput("👉 Start a local HTTP server to run at full WebAssembly speed:", false);
+            appendOutput("   python3 -m http.server 8088 --directory web   (or ./tools/serve_web.sh)", false);
+            appendOutput("   Then open: http://localhost:8088", false);
+            appendOutput("----------------------------------------------------", false);
+        }
+
+        if (typeof createMountX === 'function' && !window.Module) {
+            createMountX({
+                print: (text) => appendOutput(text, false),
+                printErr: (text) => appendOutput(text, true)
+            }).then((mod) => {
+                window.Module = mod;
+                document.getElementById('status-indicator').style.backgroundColor = '#10b981';
+                document.getElementById('status-indicator').style.boxShadow = '0 0 10px #10b981';
+                document.getElementById('wasm-status-text').textContent = 'MountX WebAssembly v1.1.0 (Native Core Live)';
+                document.getElementById('exec-status').textContent = 'Engine Ready';
+                appendOutput("[System] MountX WebAssembly engine successfully initialized and ready.", false);
+            }).catch((err) => {
+                console.warn("WASM init note:", err);
+                document.getElementById('status-indicator').style.backgroundColor = '#f59e0b';
+                document.getElementById('status-indicator').style.boxShadow = '0 0 10px #f59e0b';
+                document.getElementById('wasm-status-text').textContent = 'Requires Local HTTP Server';
+                appendOutput("💡 Run via HTTP server: python3 -m http.server 8088 --directory web", true);
+            });
+        }
+    </script>
+</body>
+</html>

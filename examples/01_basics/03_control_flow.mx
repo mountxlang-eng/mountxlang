@@ -1,0 +1,36 @@
+# examples/01_basics/03_control_flow.mx
+# If-else, while loop, for-in loop, break, continue
+
+mountx
+
+let score = 85
+if score >= 90 {
+    printx("Grade: A")
+} else if score >= 80 {
+    printx("Grade: B")
+} else {
+    printx("Grade: C or below")
+}
+
+# While loop with break/continue
+printx("Counting evens up to 10:")
+let i = 0
+while i <= 10 {
+    i = i + 1
+    if i % 2 != 0 {
+        continue
+    }
+    if i > 8 {
+        break
+    }
+    printx("  Even: " + i)
+}
+
+# For-in loop over array
+let fruits = ["Apple", "Banana", "Cherry", "Date"]
+printx("Fruit list:")
+for item in fruits {
+    printx("  - " + item)
+}
+
+unmountx

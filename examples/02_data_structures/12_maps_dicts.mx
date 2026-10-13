@@ -1,0 +1,28 @@
+# examples/02_data_structures/12_maps_dicts.mx
+# Dictionaries and key-value mapping with dict and map modules
+
+mountx
+importx dict
+importx map
+
+let d = newx dict.Dict()
+d.set("name", "MountX")
+d.set("creator", "Ziad")
+d.set("year", 2026)
+d.set("typed", "dynamic")
+
+printx("Dictionary size: " + d.size())
+printx("Name: " + d.get("name"))
+printx("Creator: " + d.get("creator"))
+printx("Has 'year'? " + d.has("year"))
+printx("Has 'speed'? " + d.has("speed"))
+
+# Functional pairs map
+let user_pairs = [["id", 101], ["username", "ziad75"], ["role", "admin"]]
+printx("Pairs get 'username': " + map.pairs_get(user_pairs, "username"))
+printx("Pairs has 'role': " + map.pairs_has(user_pairs, "role"))
+
+let updated_pairs = map.pairs_set(user_pairs, "role", "superadmin")
+printx("Updated pairs role: " + map.pairs_get(updated_pairs, "role"))
+
+unmountx

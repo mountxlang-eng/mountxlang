@@ -1,0 +1,13 @@
+{
+  "iconDefinitions": {
+    "_mountx_file": {
+      "iconPath": "./mountx-32.png"
+    }
+  },
+  "fileExtensions": {
+    "mx": "_mountx_file"
+  },
+  "languageIds": {
+    "mountx": "_mountx_file"
+  }
+}

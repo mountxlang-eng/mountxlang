@@ -1,0 +1,21 @@
+# examples/03_math_and_algorithms/29_dijkstra_shortest_path.mx
+# Shortest path in weighted graph using graph module
+
+mountx
+importx graph
+
+let network = graph.create(true) # directed graph
+
+network.add_edge("Router_A", "Router_B", 3)
+network.add_edge("Router_A", "Router_C", 5)
+network.add_edge("Router_B", "Router_C", 1)
+network.add_edge("Router_B", "Router_D", 7)
+network.add_edge("Router_C", "Router_D", 2)
+network.add_edge("Router_D", "Router_E", 4)
+network.add_edge("Router_C", "Router_E", 9)
+
+printx("All network nodes: " + network.nodes())
+let path = network.shortest_path("Router_A", "Router_E")
+printx("Optimal routing path from A to E: " + path)
+
+unmountx

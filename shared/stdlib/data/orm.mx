@@ -1,0 +1,418 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# orm.mx - Lightweight ORM and Fluent Query Builder for MountX (SQLite)
+#
+# Provides:
+#   - Database: SQLite connection manager with schema inspection
+#   - QueryBuilder: fluent queries (where, orderBy, limit, offset, insert, update, delete, count, pluck)
+#   - Record: row object with named column access (.get, .set, .to_pairs, .to_json)
+#   - Model: base Active Record class for clean OOP entity management
+#   - Global helpers: connect(path), table(name), default_db()
+
+importx string
+importx json
+
+# ---------------------------------------------------------------------------
+#  Value Formatting & SQL Escaping
+# ---------------------------------------------------------------------------
+func format_sql_val(val) {
+    if val == nullx {
+        return "NULL"
+    }
+    if typeofx(val) == "string" {
+        return "'" + string.replace(val, "'", "''") + "'"
+    }
+    if typeofx(val) == "bool" {
+        if val {
+            return "1"
+        }
+        return "0"
+    }
+    return "" + val
+}
+
+# ---------------------------------------------------------------------------
+#  Global Connection Manager
+# ---------------------------------------------------------------------------
+let _default_db_conn = nullx
+
+func connect(db_path) {
+    _default_db_conn = newx Database(db_path)
+    return _default_db_conn
+}
+
+func default_db() {
+    if _default_db_conn == nullx {
+        _default_db_conn = newx Database(":memory:")
+    }
+    return _default_db_conn
+}
+
+func close_default() {
+    if _default_db_conn != nullx {
+        _default_db_conn.close()
+        _default_db_conn = nullx
+    }
+}
+
+func table(tbl_name) {
+    return default_db().table(tbl_name)
+}
+
+# ---------------------------------------------------------------------------
+#  Record (Row Wrapper with Named Columns)
+# ---------------------------------------------------------------------------
+classx Record {
+    let _table = ""
+    let _keys = []
+    let _values = []
+
+    func init(tbl, keys, vals) {
+        this._table = tbl
+        this._keys = keys
+        this._values = vals
+    }
+
+    func get(col) {
+        let i = 0
+        while i < len(this._keys) {
+            if this._keys[i] == col {
+                return this._values[i]
+            }
+            i = i + 1
+        }
+        return nullx
+    }
+
+    func set(col, val) {
+        let i = 0
+        while i < len(this._keys) {
+            if this._keys[i] == col {
+                this._values[i] = val
+                return
+            }
+            i = i + 1
+        }
+        this._keys = this._keys + [col]
+        this._values = this._values + [val]
+    }
+
+    func has(col) {
+        let i = 0
+        while i < len(this._keys) {
+            if this._keys[i] == col {
+                return true
+            }
+            i = i + 1
+        }
+        return false
+    }
+
+    func keys() {
+        return this._keys
+    }
+
+    func values() {
+        return this._values
+    }
+
+    func to_pairs() {
+        let res = []
+        let i = 0
+        while i < len(this._keys) {
+            res = res + [[this._keys[i], this._values[i]]]
+            i = i + 1
+        }
+        return res
+    }
+
+    func to_json() {
+        return json.stringify_pairs(this.to_pairs())
+    }
+}
+
+# ---------------------------------------------------------------------------
+#  QueryBuilder
+# ---------------------------------------------------------------------------
+classx QueryBuilder {
+    let db = nullx
+    let table_name = ""
+    let where_clauses = []
+    let order_col = ""
+    let order_dir = "ASC"
+    let limit_n = -1
+    let offset_n = -1
+    let select_cols = "*"
+
+    func init(db_inst, tbl) {
+        this.db = db_inst
+        this.table_name = tbl
+        this.where_clauses = []
+        this.order_col = ""
+        this.order_dir = "ASC"
+        this.limit_n = -1
+        this.offset_n = -1
+        this.select_cols = "*"
+    }
+
+    func select(cols) {
+        this.select_cols = cols
+        return this
+    }
+
+    func where(col, op, val) {
+        let standard_op = op
+        if op == "==" {
+            standard_op = "="
+        }
+        this.where_clauses = this.where_clauses + [[col, standard_op, val]]
+        return this
+    }
+
+    func where_null(col) {
+        this.where_clauses = this.where_clauses + [[col, "IS", nullx]]
+        return this
+    }
+
+    func where_not_null(col) {
+        this.where_clauses = this.where_clauses + [[col, "IS NOT", nullx]]
+        return this
+    }
+
+    func orderBy(col, dir) {
+        this.order_col = col
+        if dir != nullx {
+            this.order_dir = dir
+        }
+        return this
+    }
+
+    func limit(n) {
+        this.limit_n = n
+        return this
+    }
+
+    func offset(n) {
+        this.offset_n = n
+        return this
+    }
+
+    func build_where_sql() {
+        if len(this.where_clauses) == 0 {
+            return ""
+        }
+        let parts = []
+        let i = 0
+        while i < len(this.where_clauses) {
+            let item = this.where_clauses[i]
+            let col = item[0]
+            let op = item[1]
+            let val = item[2]
+            let clause = ""
+            if op == "IS" || op == "IS NOT" {
+                clause = col + " " + op + " NULL"
+            } else {
+                clause = col + " " + op + " " + format_sql_val(val)
+            }
+            parts = parts + [clause]
+            i = i + 1
+        }
+        return " WHERE " + string.join(parts, " AND ")
+    }
+
+    func to_sql() {
+        let sql = "SELECT " + this.select_cols + " FROM " + this.table_name + this.build_where_sql()
+        if this.order_col != "" {
+            sql = sql + " ORDER BY " + this.order_col + " " + this.order_dir
+        }
+        if this.limit_n >= 0 {
+            sql = sql + " LIMIT " + ("" + this.limit_n)
+        }
+        if this.offset_n >= 0 {
+            sql = sql + " OFFSET " + ("" + this.offset_n)
+        }
+        return sql
+    }
+
+    func get() {
+        let sql = this.to_sql()
+        let cols = this.db.get_columns(this.table_name)
+        let rows = this.db.query(sql)
+        let records = []
+        let r = 0
+        while r < len(rows) {
+            records = records + [newx Record(this.table_name, cols, rows[r])]
+            r = r + 1
+        }
+        return records
+    }
+
+    func get_pairs() {
+        let recs = this.get()
+        let out = []
+        let i = 0
+        while i < len(recs) {
+            out = out + [recs[i].to_pairs()]
+            i = i + 1
+        }
+        return out
+    }
+
+    func first() {
+        this.limit(1)
+        let recs = this.get()
+        if len(recs) == 0 {
+            return nullx
+        }
+        return recs[0]
+    }
+
+    func find(id) {
+        this.where("id", "==", id)
+        return this.first()
+    }
+
+    func count() {
+        let sql = "SELECT COUNT(*) FROM " + this.table_name + this.build_where_sql()
+        let rows = this.db.query(sql)
+        if len(rows) > 0 && len(rows[0]) > 0 {
+            return rows[0][0]
+        }
+        return 0
+    }
+
+    func pluck(col) {
+        let recs = this.get()
+        let out = []
+        let i = 0
+        while i < len(recs) {
+            out = out + [recs[i].get(col)]
+            i = i + 1
+        }
+        return out
+    }
+
+    func insert(pairs) {
+        let cols = []
+        let vals = []
+        let i = 0
+        while i < len(pairs) {
+            cols = cols + [pairs[i][0]]
+            vals = vals + [format_sql_val(pairs[i][1])]
+            i = i + 1
+        }
+        let sql = "INSERT INTO " + this.table_name + " (" + string.join(cols, ", ") + ") VALUES (" + string.join(vals, ", ") + ");"
+        this.db.exec(sql)
+        let id_row = this.db.query("SELECT last_insert_rowid();")
+        if len(id_row) > 0 && len(id_row[0]) > 0 {
+            return id_row[0][0]
+        }
+        return 1
+    }
+
+    func update(pairs) {
+        let set_parts = []
+        let i = 0
+        while i < len(pairs) {
+            let col = pairs[i][0]
+            let val = format_sql_val(pairs[i][1])
+            set_parts = set_parts + [col + " = " + val]
+            i = i + 1
+        }
+        let sql = "UPDATE " + this.table_name + " SET " + string.join(set_parts, ", ") + this.build_where_sql() + ";"
+        return this.db.exec(sql)
+    }
+
+    func delete() {
+        let sql = "DELETE FROM " + this.table_name + this.build_where_sql() + ";"
+        return this.db.exec(sql)
+    }
+}
+
+# ---------------------------------------------------------------------------
+#  Database Connection
+# ---------------------------------------------------------------------------
+classx Database {
+    let conn = 0
+    let path = ""
+
+    func init(db_path) {
+        this.path = db_path
+        this.conn = db_open(db_path)
+    }
+
+    func close() {
+        if this.conn != 0 {
+            db_close(this.conn)
+            this.conn = 0
+        }
+    }
+
+    func exec(sql) {
+        return db_exec(this.conn, sql)
+    }
+
+    func query(sql) {
+        return db_query(this.conn, sql)
+    }
+
+    func get_columns(tbl) {
+        let rows = this.query("PRAGMA table_info(" + tbl + ");")
+        let cols = []
+        let i = 0
+        while i < len(rows) {
+            cols = cols + [rows[i][1]]
+            i = i + 1
+        }
+        return cols
+    }
+
+    func table(tbl_name) {
+        return newx QueryBuilder(this, tbl_name)
+    }
+}
+
+# ---------------------------------------------------------------------------
+#  Base Active Record Model
+# ---------------------------------------------------------------------------
+classx Model {
+    let _table = ""
+    let _db = nullx
+
+    func init(tbl, db_inst) {
+        this._table = tbl
+        if db_inst != nullx {
+            this._db = db_inst
+        } else {
+            this._db = default_db()
+        }
+    }
+
+    func query() {
+        return this._db.table(this._table)
+    }
+
+    func all() {
+        return this.query().get()
+    }
+
+    func all_pairs() {
+        return this.query().get_pairs()
+    }
+
+    func find(id) {
+        return this.query().find(id)
+    }
+
+    func where(col, op, val) {
+        return this.query().where(col, op, val)
+    }
+
+    func create(pairs) {
+        let new_id = this.query().insert(pairs)
+        return this.find(new_id)
+    }
+
+    func count() {
+        return this.query().count()
+    }
+}

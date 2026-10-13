@@ -1,0 +1,42 @@
+# examples/01_basics/05_classes_oop.mx
+# Object-Oriented Programming: classes, fields, methods, constructors
+
+mountx
+
+classx BankAccount {
+    let owner = ""
+    let balance = 0.0
+
+    func init(owner_name, starting_balance) {
+        this.owner = owner_name
+        this.balance = starting_balance
+    }
+
+    func deposit(amount) {
+        this.balance = this.balance + amount
+        printx("Deposited " + amount + " to " + this.owner + "'s account.")
+    }
+
+    func withdraw(amount) {
+        if amount > this.balance {
+            printx("Insufficient funds for " + this.owner + "!")
+            return false
+        }
+        this.balance = this.balance - amount
+        printx("Withdrew " + amount + " from " + this.owner + "'s account.")
+        return true
+    }
+
+    func summary() {
+        return "Account[" + this.owner + "]: Balance = " + this.balance
+    }
+}
+
+let acc = newx BankAccount("Alice", 1000.0)
+printx(acc.summary())
+acc.deposit(250.0)
+acc.withdraw(100.0)
+acc.withdraw(2000.0)
+printx("Final: " + acc.summary())
+
+unmountx

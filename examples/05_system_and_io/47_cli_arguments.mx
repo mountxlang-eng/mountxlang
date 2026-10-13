@@ -1,0 +1,22 @@
+# examples/05_system_and_io/47_cli_arguments.mx
+# Command-line argument parsing with args module
+
+mountx
+importx args
+
+let parser = args.create_parser("build-tool", "Compiles MountX projects")
+parser.add_flag("release", "r", "Build in release mode")
+parser.add_opt("output", "o", "dist/app", "Target binary path")
+parser.add_arg("source", "Main source file")
+
+# Simulate passing command line arguments:
+let simulated_argv = ["--release", "--output=bin/myprogram", "main.mx"]
+printx("Parsing simulated argv: " + simulated_argv)
+
+parser.parse(simulated_argv)
+
+printx("Release flag: " + parser.get("release"))
+printx("Output path:  " + parser.get("output"))
+printx("Positionals:  " + parser.positionals())
+
+unmountx

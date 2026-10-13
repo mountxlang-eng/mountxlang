@@ -1,0 +1,25 @@
+# Binaries
+mountx-native
+mountx.exe
+*.o
+*.a
+*.so
+*.wasm
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.env
+
+# Temp & OS
+tmp/
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+config.json
+*secret*
+*mountxai/config*

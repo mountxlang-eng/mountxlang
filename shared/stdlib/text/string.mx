@@ -1,0 +1,370 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# string.mx - full string toolkit (replaces the old placeholder version)
+
+func tostr(v) {
+    return "" + v
+}
+
+func is_empty(s) {
+    return len(s) == 0
+}
+
+func index_of(s, target) {
+    let n = len(s)
+    let m = len(target)
+    if m == 0 {
+        return 0
+    }
+    let i = 0
+    while i <= n - m {
+        let j = 0
+        let ok = true
+        while j < m {
+            if s[i + j] != target[j] {
+                ok = false
+                break
+            }
+            j = j + 1
+        }
+        if ok {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+func last_index_of(s, target) {
+    let n = len(s)
+    let m = len(target)
+    if m == 0 {
+        return n
+    }
+    if m > n {
+        return -1
+    }
+    let i = n - m
+    while i >= 0 {
+        let j = 0
+        let ok = true
+        while j < m {
+            if s[i + j] != target[j] {
+                ok = false
+                break
+            }
+            j = j + 1
+        }
+        if ok {
+            return i
+        }
+        i = i - 1
+    }
+    return -1
+}
+
+func contains(s, sub) {
+    return index_of(s, sub) != -1
+}
+
+func starts_with(s, prefix) {
+    if len(prefix) > len(s) {
+        return false
+    }
+    let i = 0
+    while i < len(prefix) {
+        if s[i] != prefix[i] {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+func ends_with(s, suffix) {
+    if len(suffix) > len(s) {
+        return false
+    }
+    let offset = len(s) - len(suffix)
+    let i = 0
+    while i < len(suffix) {
+        if s[offset + i] != suffix[i] {
+            return false
+        }
+        i = i + 1
+    }
+    return true
+}
+
+# end-exclusive; clamps to the string
+func substr(s, start, end) {
+    if start < 0 {
+        start = 0
+    }
+    if end > len(s) {
+        end = len(s)
+    }
+    let out = ""
+    let i = start
+    while i < end {
+        out = out + s[i]
+        i = i + 1
+    }
+    return out
+}
+
+func split(s, sep) {
+    let out = []
+    if sep == "" {
+        let chars = []
+        let i = 0
+        while i < len(s) {
+            chars = chars + [s[i]]
+            i = i + 1
+        }
+        return chars
+    }
+    let rest = s
+    while true {
+        let pos = index_of(rest, sep)
+        if pos == -1 {
+            out = out + [rest]
+            break
+        }
+        out = out + [substr(rest, 0, pos)]
+        rest = substr(rest, pos + len(sep), len(rest))
+    }
+    return out
+}
+
+func join(arr, sep) {
+    let out = ""
+    let i = 0
+    while i < len(arr) {
+        if i > 0 {
+            out = out + sep
+        }
+        out = out + arr[i]
+        i = i + 1
+    }
+    return out
+}
+
+func _is_ws(ch) {
+    return ch == " " || ch == "\t" || ch == "\n" || ch == "\r"
+}
+
+func trim_start(s) {
+    let i = 0
+    while i < len(s) {
+        if !_is_ws(s[i]) {
+            break
+        }
+        i = i + 1
+    }
+    return substr(s, i, len(s))
+}
+
+func trim_end(s) {
+    let end = len(s)
+    while end > 0 {
+        if !_is_ws(s[end - 1]) {
+            break
+        }
+        end = end - 1
+    }
+    return substr(s, 0, end)
+}
+
+func trim(s) {
+    return trim_end(trim_start(s))
+}
+
+# replaces ALL occurrences; "from" must not be ""
+func replace_all(s, from, to) {
+    if from == "" {
+        return s
+    }
+    let out = ""
+    let rest = s
+    while true {
+        let pos = index_of(rest, from)
+        if pos == -1 {
+            out = out + rest
+            break
+        }
+        out = out + substr(rest, 0, pos) + to
+        rest = substr(rest, pos + len(from), len(rest))
+    }
+    return out
+}
+
+func replace(s, from, to) {
+    return replace_all(s, from, to)
+}
+
+func repeat(s, n) {
+    let out = ""
+    loop n {
+        out = out + s
+    }
+    return out
+}
+
+func reverse(s) {
+    let out = ""
+    let i = len(s) - 1
+    while i >= 0 {
+        out = out + s[i]
+        i = i - 1
+    }
+    return out
+}
+
+func upper(s) {
+    let lo = "abcdefghijklmnopqrstuvwxyz"
+    let up = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let out = ""
+    let i = 0
+    while i < len(s) {
+        let idx = index_of(lo, s[i])
+        if idx >= 0 {
+            out = out + up[idx]
+        } else {
+            out = out + s[i]
+        }
+        i = i + 1
+    }
+    return out
+}
+
+func lower(s) {
+    let lo = "abcdefghijklmnopqrstuvwxyz"
+    let up = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    let out = ""
+    let i = 0
+    while i < len(s) {
+        let idx = index_of(up, s[i])
+        if idx >= 0 {
+            out = out + lo[idx]
+        } else {
+            out = out + s[i]
+        }
+        i = i + 1
+    }
+    return out
+}
+
+func to_lower(s) {
+    return lower(s)
+}
+
+func to_upper(s) {
+    return upper(s)
+}
+
+func capitalize(s) {
+    if len(s) == 0 {
+        return s
+    }
+    return upper(s[0]) + substr(s, 1, len(s))
+}
+
+# pads with whole copies of pad; may exceed width to keep pad intact
+func pad_start(s, width, pad) {
+    let out = s
+    while len(out) < width {
+        out = pad + out
+    }
+    return out
+}
+
+func pad_end(s, width, pad) {
+    let out = s
+    while len(out) < width {
+        out = out + pad
+    }
+    return out
+}
+
+# non-overlapping occurrence count; 0 when sub is ""
+func count(s, sub) {
+    if sub == "" {
+        return 0
+    }
+    let n = 0
+    let rest = s
+    while true {
+        let pos = index_of(rest, sub)
+        if pos == -1 {
+            break
+        }
+        n = n + 1
+        rest = substr(rest, pos + len(sub), len(rest))
+    }
+    return n
+}
+
+# "42" -> 42, " -1.5 " -> -1.5, "abc" -> nullx
+func tonum(s) {
+    let dg = "0123456789"
+    let t = trim(s)
+    let n = len(t)
+    if n == 0 {
+        return nullx
+    }
+    let i = 0
+    let neg = false
+    if t[0] == "-" {
+        neg = true
+        i = 1
+    } else if t[0] == "+" {
+        i = 1
+    }
+    if i >= n {
+        return nullx
+    }
+    let intpart = 0
+    let fracval = 0
+    let frac_count = 0
+    let seen_dot = false
+    let any = false
+    while i < n {
+        let ch = t[i]
+        if ch == "." {
+            if seen_dot {
+                return nullx
+            }
+            seen_dot = true
+        } else {
+            let d = index_of(dg, ch)
+            if d < 0 {
+                return nullx
+            }
+            any = true
+            if seen_dot {
+                fracval = fracval * 10 + d
+                frac_count = frac_count + 1
+            } else {
+                intpart = intpart * 10 + d
+            }
+        }
+        i = i + 1
+    }
+    if !any {
+        return nullx
+    }
+    let v = intpart
+    if frac_count > 0 {
+        let p = 1
+        let k = 0
+        while k < frac_count {
+            p = p * 10
+            k = k + 1
+        }
+        v = intpart + fracval / p
+    }
+    if neg {
+        return 0 - v
+    }
+    return v
+}

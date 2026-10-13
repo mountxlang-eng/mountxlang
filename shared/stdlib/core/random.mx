@@ -1,0 +1,81 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# random.mx - seeded pseudo-random numbers (core/)
+# Same seed -> same sequence (great for reproducible tests). The shared
+# generator is seeded from time_now_ms() when available, else 1.
+
+classx Rand {
+    let s = 1
+
+    func init(seed) {
+        if seed <= 0 {
+            seed = 7 - seed
+        }
+        this.s = seed
+    }
+
+    # 0 .. 2147483647
+    func next() {
+        this.s = (this.s * 1103515245 + 12345) % 2147483648
+        return this.s
+    }
+
+    # 0 .. n-1
+    func below(n) {
+        if n <= 0 {
+            throwx "random.below: n must be > 0"
+        }
+        return this.next() % n
+    }
+
+    func int_between(lo, hi) {
+        if hi <= lo {
+            throwx "random.int_between: hi must be > lo"
+        }
+        return lo + this.below(hi - lo)
+    }
+
+    # true pct% of the time
+    func chance(pct) {
+        return this.below(100) < pct
+    }
+
+    func choice(arr) {
+        if len(arr) == 0 {
+            throwx "random.choice: empty array"
+        }
+        return arr[this.below(len(arr))]
+    }
+
+    # in-place Fisher-Yates; returns the same array
+    func shuffle(arr) {
+        let i = len(arr) - 1
+        while i > 0 {
+            let j = this.below(i + 1)
+            let tmp = arr[i]
+            arr[i] = arr[j]
+            arr[j] = tmp
+            i = i - 1
+        }
+        return arr
+    }
+}
+
+# ---- shared generator ----
+# One documented module-level let with a _-prefixed name (module lets become
+# globals; the underscore keeps it collision-free, and imports run once).
+let _default_rng = newx Rand(1)
+tryx {
+    _default_rng = newx Rand(time_now_ms())
+} catchx(e) {
+}
+
+func seed_rng(seed) {
+    _default_rng = newx Rand(seed)
+    return true
+}
+
+func rand_below(n)    { return _default_rng.below(n) }
+func rand_int(lo, hi) { return _default_rng.int_between(lo, hi) }
+func rand_choice(arr) { return _default_rng.choice(arr) }
+func rand_shuffle(arr) { return _default_rng.shuffle(arr) }
+func rand_chance(pct) { return _default_rng.chance(pct) }

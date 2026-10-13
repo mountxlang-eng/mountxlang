@@ -1,0 +1,53 @@
+# examples/02_data_structures/20_collections_counter.mx
+# Collections umbrella and custom Word Frequency Counter
+
+mountx
+importx collections
+importx dict
+
+printx("Collections umbrella info: " + collections.info())
+
+# Build a Frequency Counter class
+classx Counter {
+    let counts = nullx
+    let total = 0
+
+    func init() {
+        this.counts = newx dict.Dict()
+        this.total = 0
+    }
+
+    func add(item) {
+        let cur = this.counts.get(item)
+        if cur == nullx {
+            this.counts.set(item, 1)
+        } else {
+            this.counts.set(item, cur + 1)
+        }
+        this.total = this.total + 1
+    }
+
+    func get(item) {
+        let v = this.counts.get(item)
+        if v == nullx { return 0 }
+        return v
+    }
+
+    func keys() {
+        return this.counts.keys
+    }
+}
+
+let c = newx Counter()
+let items = ["apple", "banana", "apple", "orange", "apple", "banana"]
+for it in items {
+    c.add(it)
+}
+
+printx("Total counted: " + c.total)
+printx("Count of 'apple': " + c.get("apple"))
+printx("Count of 'banana': " + c.get("banana"))
+printx("Count of 'orange': " + c.get("orange"))
+printx("Count of 'grape': " + c.get("grape"))
+
+unmountx

@@ -1,0 +1,27 @@
+# examples/02_data_structures/16_queue.mx
+# FIFO Queue and background task processing simulation
+
+mountx
+importx queue
+
+let q = newx queue.Queue()
+
+# Enqueue tasks
+q.enqueue("Task 1: Download file")
+q.enqueue("Task 2: Parse JSON")
+q.enqueue("Task 3: Insert into SQLite")
+q.enqueue("Task 4: Send notification")
+
+printx("Pending tasks: " + q.size())
+printx("Next task in line: " + q.peek())
+
+# Process tasks in FIFO order
+printx("Processing task queue:")
+while !q.is_empty() {
+    let task = q.dequeue()
+    printx("  -> Executing: " + task)
+}
+
+printx("All tasks finished. Queue size: " + q.size())
+
+unmountx

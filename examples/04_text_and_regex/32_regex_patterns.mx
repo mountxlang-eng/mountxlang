@@ -1,0 +1,21 @@
+# examples/04_text_and_regex/32_regex_patterns.mx
+# Pattern matching using the regex module
+
+mountx
+importx regex
+
+printx("Testing regex patterns:")
+
+# 1. Matching start of line and wildcards
+printx("Starts with 'Mount': " + regex.is_match("^Mount", "MountX 2026"))
+printx("Matches '.ount.':     " + regex.is_match(".ount.", "MountX"))
+
+# 2. Character classes and quantifiers
+printx("All digits '[0-9]+': " + regex.is_match("^[0-9]+$", "987654321"))
+printx("Non-digit rejected:  " + regex.is_match("^[0-9]+$", "987abc1"))
+
+# 3. Simple email/username test pattern
+printx("Valid username [a-z0-9]+: " + regex.is_match("^[a-z0-9]+$", "ziad75"))
+printx("Plus/star repetition:     " + regex.is_match("a+b*c", "aaabbbc"))
+
+unmountx

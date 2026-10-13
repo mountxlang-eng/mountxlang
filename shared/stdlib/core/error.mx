@@ -1,0 +1,83 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# error.mx - error values, result tuples, assertions
+
+classx MxError {
+    let code = ""
+    let message = ""
+
+    func init(code, message) {
+        this.code = code
+        this.message = message
+    }
+
+    func to_string() {
+        return "[" + this.code + "] " + this.message
+    }
+}
+
+func make_error(code, message) {
+    return newx MxError(code, message)
+}
+
+func throw_error(code, message) {
+    throwx newx MxError(code, message)
+}
+
+func panic(message) {
+    throwx newx MxError("panic", message)
+}
+
+func is_error(e) {
+    return typeofx(e) == "MxError"
+}
+
+func error_code(e) {
+    if is_error(e) {
+        return e.code
+    }
+    return ""
+}
+
+func error_message(e) {
+    if is_error(e) {
+        return e.message
+    }
+    return "" + e
+}
+
+# runs fn() -> ["ok", value] or ["err", thrown]
+func attempt(fn) {
+    tryx {
+        return ["ok", fn()]
+    } catchx(e) {
+        return ["err", e]
+    }
+}
+
+func is_ok(r) {
+    return r[0] == "ok"
+}
+
+func result_value(r) {
+    return r[1]
+}
+
+func result_error(r) {
+    return r[1]
+}
+
+
+
+# calls fn up to `times` times; stops at the first ["ok", ...]
+func retry(times, fn) {
+    let r = ["err", "not attempted"]
+    let i = 0
+    while i < times {
+        r = attempt(fn)
+        if r[0] == "ok" {
+            return r
+        }
+        i = i + 1
+    }
+    return r
+}

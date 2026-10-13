@@ -1,0 +1,91 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# os.mx - filesystem & environment (system/)
+# Needs the os_* natives (Step 2).
+
+importx string
+
+func sep() {
+    return os_sep()
+}
+
+func path_join(parts) {
+    return string.join(parts, os_sep())
+}
+
+func path_split(p) {
+    return string.split(p, os_sep())
+}
+
+func path_basename(p) {
+    let parts = path_split(p)
+    if len(parts) == 0 {
+        return ""
+    }
+    return parts[len(parts) - 1]
+}
+
+func path_parent(p) {
+    let parts = path_split(p)
+    if len(parts) <= 1 {
+        return ""
+    }
+    let out = []
+    let i = 0
+    while i < len(parts) - 1 {
+        out = out + [parts[i]]
+        i = i + 1
+    }
+    return string.join(out, os_sep())
+}
+
+# "report.txt" -> "txt"; dotfiles like ".mx" -> ""; no dot -> ""
+func path_ext(p) {
+    let base = path_basename(p)
+    let dot = string.last_index_of(base, ".")
+    if dot <= 0 {
+        return ""
+    }
+    return string.substr(base, dot + 1, len(base))
+}
+
+func env(name) {
+    return os_env(name)
+}
+
+func env_or(name, fallback) {
+    let v = os_env(name)
+    if v == nullx {
+        return fallback
+    }
+    return v
+}
+
+func cwd() {
+    return os_cwd()
+}
+
+# sorted names; throws on a bad path
+func listdir(path) {
+    return os_listdir(path)
+}
+
+# entries whose name ends with ext (".mx"); ext "" returns everything
+func listdir_ext(path, ext) {
+    let all = os_listdir(path)
+    if ext == "" {
+        return all
+    }
+    let out = []
+    for name in all {
+        if string.ends_with(name, ext) {
+            out = out + [name]
+        }
+    }
+    return out
+}
+
+# run a system command and return its exit code (integer)
+func system(cmd) {
+    let raw = sys_exec(cmd)
+    return raw[0]
+}

@@ -1,0 +1,50 @@
+# examples/08_projects/05_weather_api_client/main.mx
+# Project 5: Public Web REST API Client & Terminal Card Formatter
+
+mountx
+importx net
+importx json
+importx map
+
+classx WeatherApiClient {
+    let endpoint = ""
+
+    func init() {
+        this.endpoint = "https://httpbin.org/get"
+    }
+
+    func fetch_mock_forecast(city) {
+        printx("Connecting to remote weather service for: " + city + "...")
+        let query_url = this.endpoint + "?city=" + city + "&units=metric&temp=24&condition=Sunny"
+        let raw_resp = net.fetch(query_url)
+        return json.parse(raw_resp)
+    }
+
+    func display_weather_card(city, data) {
+        let args_pairs = map.pairs_get(data, "args")
+        let temp = map.pairs_get(args_pairs, "temp")
+        let cond = map.pairs_get(args_pairs, "condition")
+        let units = map.pairs_get(args_pairs, "units")
+
+        printx("\n+------------------------------------+")
+        printx("|           WEATHER FORECAST         |")
+        printx("+------------------------------------+")
+        printx("  City:        " + city)
+        printx("  Temperature: " + temp + " C (" + units + ")")
+        printx("  Condition:   " + cond + " ☀")
+        printx("  Status:      Verified Live via HTTPS")
+        printx("+------------------------------------+\n")
+    }
+}
+
+let client = newx WeatherApiClient()
+tryx {
+    let result = client.fetch_mock_forecast("Riyadh")
+    client.display_weather_card("Riyadh", result)
+} catchx (e) {
+    printx("Could not reach weather service (offline): " + e)
+}
+
+printx("Project 5 finished cleanly.")
+
+unmountx

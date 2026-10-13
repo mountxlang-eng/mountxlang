@@ -1,0 +1,40 @@
+# examples/01_basics/07_try_catch_throw.mx
+# Error handling with tryx, catchx, throwx, and error module
+
+mountx
+importx error
+
+func divide(a, b) {
+    if b == 0 {
+        throwx "ZeroDivisionError: Cannot divide " + a + " by zero"
+    }
+    return a / b
+}
+
+func safe_calculator(a, b) {
+    tryx {
+        let res = divide(a, b)
+        printx(a + " / " + b + " = " + res)
+    } catchx (err) {
+        printx("Caught error: " + err)
+    }
+}
+
+safe_calculator(10, 2)
+safe_calculator(10, 0)
+
+func try_good() {
+    return divide(25, 5)
+}
+
+func try_bad() {
+    return divide(25, 0)
+}
+
+let attempt_result = error.attempt(try_good)
+printx("Attempt success tag: " + attempt_result[0] + ", value: " + attempt_result[1])
+
+let failed_attempt = error.attempt(try_bad)
+printx("Failed attempt tag: " + failed_attempt[0] + ", error: " + failed_attempt[1])
+
+unmountx

@@ -1,0 +1,27 @@
+# examples/02_data_structures/18_binary_search_tree.mx
+# Binary Search Tree (BST) sorted keys and in-order traversal
+
+mountx
+importx bst
+
+let tree = newx bst.BST()
+
+tree.insert(50, "Root: Fifty")
+tree.insert(30, "Thirty")
+tree.insert(70, "Seventy")
+tree.insert(20, "Twenty")
+tree.insert(40, "Forty")
+tree.insert(60, "Sixty")
+tree.insert(80, "Eighty")
+
+printx("BST node count: " + tree.count)
+printx("Has key 40? " + tree.has(40))
+printx("Has key 99? " + tree.has(99))
+printx("Lookup 70: " + tree.get(70))
+printx("Minimum key: " + tree.min_key())
+printx("Maximum key: " + tree.max_key())
+
+# In-order traversal produces naturally sorted keys
+printx("Sorted keys via in-order traversal: " + tree.keys())
+
+unmountx

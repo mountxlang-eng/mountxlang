@@ -1,0 +1,144 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# linkedlist.mx - singly linked list with O(1) front/back ops
+
+classx LLNode {
+    let val = nullx
+    let next = nullx
+
+    func init(v) {
+        this.val = v
+    }
+}
+
+classx LinkedList {
+    let head = nullx
+    let tail = nullx
+    let count = 0
+
+    func add_front(v) {
+        let node = newx LLNode(v)
+        node.next = this.head
+        this.head = node
+        if this.tail == nullx {
+            this.tail = node
+        }
+        this.count = this.count + 1
+        return this
+    }
+
+    func add_back(v) {
+        let node = newx LLNode(v)
+        if this.tail == nullx {
+            this.head = node
+            this.tail = node
+        } else {
+            this.tail.next = node
+            this.tail = node
+        }
+        this.count = this.count + 1
+        return this
+    }
+
+    # nullx when empty
+    func remove_front() {
+        if this.head == nullx {
+            return nullx
+        }
+        let v = this.head.val
+        this.head = this.head.next
+        if this.head == nullx {
+            this.tail = nullx
+        }
+        this.count = this.count - 1
+        return v
+    }
+
+    func peek_front() {
+        if this.head == nullx {
+            return nullx
+        }
+        return this.head.val
+    }
+
+    func peek_back() {
+        if this.tail == nullx {
+            return nullx
+        }
+        return this.tail.val
+    }
+
+    func size() {
+        return this.count
+    }
+
+    func is_empty() {
+        return this.count == 0
+    }
+
+    func contains(v) {
+        let cur = this.head
+        while cur != nullx {
+            if cur.val == v {
+                return true
+            }
+            cur = cur.next
+        }
+        return false
+    }
+
+    # removes the first node whose val == v; true if removed
+    func remove_first(v) {
+        let prev = nullx
+        let cur = this.head
+        while cur != nullx {
+            if cur.val == v {
+                if prev == nullx {
+                    this.head = cur.next
+                } else {
+                    prev.next = cur.next
+                }
+                if this.tail == cur {
+                    this.tail = prev
+                }
+                this.count = this.count - 1
+                return true
+            }
+            prev = cur
+            cur = cur.next
+        }
+        return false
+    }
+
+    # reverses in place
+    func reverse() {
+        let old_head = this.head
+        let prev = nullx
+        let cur = this.head
+        while cur != nullx {
+            let nxt = cur.next
+            cur.next = prev
+            prev = cur
+            cur = nxt
+        }
+        this.head = prev
+        this.tail = old_head
+        return this
+    }
+
+    func clear() {
+        this.head = nullx
+        this.tail = nullx
+        this.count = 0
+    }
+
+    # front -> back
+    func to_array() {
+        let out = []
+        let cur = this.head
+        while cur != nullx {
+            out = out + [cur.val]
+            cur = cur.next
+        }
+        return out
+    }
+}

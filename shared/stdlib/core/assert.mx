@@ -1,0 +1,105 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# assert.mx - assertions & test tracking (core/)
+# Failures throw; use Tracker for non-throwing checks.
+# NOTE: delete assert_true/assert_eq from error.mx - they live here now.
+
+func assert_true(cond, message) {
+    if !cond {
+        throwx "assert_true failed: " + message
+    }
+    return true
+}
+
+func assert_false(cond, message) {
+    if cond {
+        throwx "assert_false failed: " + message
+    }
+    return true
+}
+
+func assert_eq(a, b, message) {
+    if !(a == b) {
+        throwx "assert_eq failed: " + message + " (expected " + b + ", got " + a + ")"
+    }
+    return true
+}
+
+func assert_ne(a, b, message) {
+    if a == b {
+        throwx "assert_ne failed: " + message + " (both are " + a + ")"
+    }
+    return true
+}
+
+func assert_null(v, message) {
+    if v != nullx {
+        throwx "assert_null failed: " + message + " (got " + v + ")"
+    }
+    return true
+}
+
+func assert_not_null(v, message) {
+    if v == nullx {
+        throwx "assert_not_null failed: " + message
+    }
+    return true
+}
+
+func assert_between(x, lo, hi, message) {
+    if x < lo || x > hi {
+        throwx "assert_between failed: " + message + " (" + x + " not in [" + lo + ", " + hi + "])"
+    }
+    return true
+}
+
+# fn must throw for this to pass; returns the caught value
+func assert_throws(fn, message) {
+    tryx {
+        fn()
+    } catchx(e) {
+        return e
+    }
+    throwx "assert_throws failed: " + message + " (no error was thrown)"
+}
+
+# fn must NOT throw
+func assert_no_throw(fn, message) {
+    tryx {
+        fn()
+    } catchx(e) {
+        throwx "assert_no_throw failed: " + message + " (got: " + e + ")"
+    }
+    return true
+}
+
+classx Tracker {
+    let passed = 0
+    let failed = 0
+    let failures = []
+
+    func check(cond, label) {
+        if cond {
+            this.passed = this.passed + 1
+        } else {
+            this.failed = this.failed + 1
+            this.failures = this.failures + [label]
+        }
+        return cond
+    }
+
+    func check_eq(a, b, label) {
+        return this.check(a == b, label + " (expected " + b + ", got " + a + ")")
+    }
+
+    func summary() {
+        if this.failed == 0 {
+            printx("OK - " + this.passed + " check(s) passed")
+        } else {
+            printx("FAILED - " + this.passed + " passed, " + this.failed + " failed")
+            for f in this.failures {
+                printx("  - " + f)
+            }
+        }
+        return this.failed == 0
+    }
+}

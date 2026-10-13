@@ -1,0 +1,31 @@
+# examples/04_text_and_regex/36_text_templating.mx
+# Mini template engine rendering placeholders like {{key}}
+
+mountx
+importx string
+importx map
+
+func render_template(tmpl, context_pairs) {
+    let result = tmpl
+    for pair in context_pairs {
+        let placeholder = "{{" + pair[0] + "}}"
+        let val = "" + pair[1]
+        result = string.replace(result, placeholder, val)
+    }
+    return result
+}
+
+let email_template = "Dear {{name}},\nThank you for choosing {{product}}! Your activation code is {{code}}.\nRegards,\nThe {{company}} Team"
+
+let ctx = [
+    ["name", "Sarah"],
+    ["product", "MountX Studio"],
+    ["code", "MX-2026-PRO"],
+    ["company", "Antigravity"]
+]
+
+printx("--- Template Output ---")
+let rendered = render_template(email_template, ctx)
+printx(rendered)
+
+unmountx

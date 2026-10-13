@@ -1,0 +1,97 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# exception.mx - standardized exceptions and error handling (core/)
+# Usage:
+#   importx exception
+#   throwx newx exception.ValueError("Invalid age")
+#   let val = exception.try_or(fn, 0)
+
+classx Exception {
+    let message = ""
+    let kind = "Exception"
+
+    func init(msg) {
+        this.message = "" + msg
+        this.kind = "Exception"
+    }
+
+    func to_string() {
+        return this.kind + ": " + this.message
+    }
+}
+
+classx ValueError extends Exception {
+    func init(msg) {
+        super(msg)
+        this.kind = "ValueError"
+    }
+}
+
+classx TypeError extends Exception {
+    func init(msg) {
+        super(msg)
+        this.kind = "TypeError"
+    }
+}
+
+classx KeyError extends Exception {
+    func init(msg) {
+        super(msg)
+        this.kind = "KeyError"
+    }
+}
+
+classx IndexError extends Exception {
+    func init(msg) {
+        super(msg)
+        this.kind = "IndexError"
+    }
+}
+
+classx IOError extends Exception {
+    func init(msg) {
+        super(msg)
+        this.kind = "IOError"
+    }
+}
+
+classx RuntimeError extends Exception {
+    func init(msg) {
+        super(msg)
+        this.kind = "RuntimeError"
+    }
+}
+
+func raise_if(cond, msg) {
+    if cond {
+        throwx newx Exception(msg)
+    }
+}
+
+func raise_unless(cond, msg) {
+    if !cond {
+        throwx newx Exception(msg)
+    }
+}
+
+func try_or(fn, fallback) {
+    tryx {
+        return fn()
+    } catchx(e) {
+        return fallback
+    }
+}
+
+func try_run(fn) {
+    tryx {
+        return [true, fn()]
+    } catchx(e) {
+        return [false, e]
+    }
+}
+
+func format_exception(e) {
+    if typeofx(e) == "instance" {
+        return e.to_string()
+    }
+    return "" + e
+}

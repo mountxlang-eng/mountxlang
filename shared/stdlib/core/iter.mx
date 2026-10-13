@@ -1,0 +1,169 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# iter.mx - building and segmenting sequences (all eager/finite)
+
+func range(n) {
+    let out = []
+    let i = 0
+    while i < n {
+        out = out + [i]
+        i = i + 1
+    }
+    return out
+}
+
+func range_from(lo, hi) {
+    let out = []
+    let i = lo
+    while i < hi {
+        out = out + [i]
+        i = i + 1
+    }
+    return out
+}
+
+# step may be negative
+func range_step(lo, hi, step) {
+    if step == 0 {
+        throwx "range_step: step cannot be 0"
+    }
+    let out = []
+    let i = lo
+    if step > 0 {
+        while i < hi {
+            out = out + [i]
+            i = i + step
+        }
+    } else {
+        while i > hi {
+            out = out + [i]
+            i = i + step
+        }
+    }
+    return out
+}
+
+# -> [[0, a[0]], [1, a[1]], ...]
+func enumerate(a) {
+    let out = []
+    let i = 0
+    while i < len(a) {
+        out = out + [[i, a[i]]]
+        i = i + 1
+    }
+    return out
+}
+
+func zip(a, b) {
+    let n = len(a)
+    if len(b) < n {
+        n = len(b)
+    }
+    let out = []
+    let i = 0
+    while i < n {
+        out = out + [[a[i], b[i]]]
+        i = i + 1
+    }
+    return out
+}
+
+# sliding windows of length n
+func windows(arr, n) {
+    if n <= 0 {
+        throwx "windows: n must be >= 1"
+    }
+    let out = []
+    let i = 0
+    while i + n <= len(arr) {
+        let w = []
+        let j = i
+        while j < i + n {
+            w = w + [arr[j]]
+            j = j + 1
+        }
+        out = out + [w]
+        i = i + 1
+    }
+    return out
+}
+
+# consecutive chunks of size n (last may be shorter)
+func chunks(arr, n) {
+    if n <= 0 {
+        throwx "chunks: n must be >= 1"
+    }
+    let out = []
+    let i = 0
+    while i < len(arr) {
+        let c = []
+        let j = i
+        while j < i + n {
+            if j < len(arr) {
+                c = c + [arr[j]]
+            }
+            j = j + 1
+        }
+        out = out + [c]
+        i = i + n
+    }
+    return out
+}
+
+# running results of fn(acc, x), starting from init
+func scan(arr, fn, init) {
+    let acc = init
+    let out = []
+    for x in arr {
+        acc = fn(acc, x)
+        out = out + [acc]
+    }
+    return out
+}
+
+# stops at the FIRST element where fn is false
+func take_while(arr, fn) {
+    let out = []
+    for x in arr {
+        if !fn(x) {
+            return out
+        }
+        out = out + [x]
+    }
+    return out
+}
+
+func drop_while(arr, fn) {
+    let i = 0
+    while i < len(arr) {
+        if !fn(arr[i]) {
+            break
+        }
+        i = i + 1
+    }
+    let out = []
+    while i < len(arr) {
+        out = out + [arr[i]]
+        i = i + 1
+    }
+    return out
+}
+
+# fn(x) must return an array; results are concatenated in order
+func flat_map(arr, fn) {
+    let out = []
+    for x in arr {
+        out = out + fn(x)
+    }
+    return out
+}
+
+# calls fn(i) for i in 0..n-1 and collects the results
+func iterate(n, fn) {
+    let out = []
+    let i = 0
+    while i < n {
+        out = out + [fn(i)]
+        i = i + 1
+    }
+    return out
+}

@@ -1,0 +1,314 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# arrayfull.mx - full array toolkit (replaces array.mx)
+# Builders return NEW arrays; swap() mutates in place.
+
+func is_empty(arr) {
+    return len(arr) == 0
+}
+
+func first(arr) {
+    if len(arr) == 0 {
+        return nullx
+    }
+    return arr[0]
+}
+
+func last(arr) {
+    if len(arr) == 0 {
+        return nullx
+    }
+    return arr[len(arr) - 1]
+}
+
+func copy(arr) {
+    return arr + []
+}
+
+func fill(v, n) {
+    let out = []
+    let i = 0
+    while i < n {
+        out = out + [v]
+        i = i + 1
+    }
+    return out
+}
+
+func map(arr, fn) {
+    let out = []
+    for x in arr {
+        out = out + [fn(x)]
+    }
+    return out
+}
+
+func filter(arr, fn) {
+    let out = []
+    for x in arr {
+        if fn(x) {
+            out = out + [x]
+        }
+    }
+    return out
+}
+
+func reduce(arr, fn, init) {
+    let acc = init
+    for x in arr {
+        acc = fn(acc, x)
+    }
+    return acc
+}
+
+func every(arr, fn) {
+    for x in arr {
+        if !fn(x) {
+            return false
+        }
+    }
+    return true
+}
+
+func some(arr, fn) {
+    for x in arr {
+        if fn(x) {
+            return true
+        }
+    }
+    return false
+}
+
+func count_where(arr, fn) {
+    let n = 0
+    for x in arr {
+        if fn(x) {
+            n = n + 1
+        }
+    }
+    return n
+}
+
+func find(arr, fn) {
+    for x in arr {
+        if fn(x) {
+            return x
+        }
+    }
+    return nullx
+}
+
+func find_index(arr, fn) {
+    let i = 0
+    while i < len(arr) {
+        if fn(arr[i]) {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+# search by value (== is deep for arrays); named to never clash with string.index_of
+func arr_index_of(arr, val) {
+    let i = 0
+    while i < len(arr) {
+        if arr[i] == val {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+func includes(arr, val) {
+    return arr_index_of(arr, val) != -1
+}
+
+func sum(arr) {
+    let s = 0
+    for x in arr {
+        s = s + x
+    }
+    return s
+}
+
+func min_of(arr) {
+    if len(arr) == 0 {
+        return nullx
+    }
+    let m = arr[0]
+    let i = 1
+    while i < len(arr) {
+        if arr[i] < m {
+            m = arr[i]
+        }
+        i = i + 1
+    }
+    return m
+}
+
+func max_of(arr) {
+    if len(arr) == 0 {
+        return nullx
+    }
+    let m = arr[0]
+    let i = 1
+    while i < len(arr) {
+        if arr[i] > m {
+            m = arr[i]
+        }
+        i = i + 1
+    }
+    return m
+}
+
+func reversed(arr) {
+    let out = []
+    let i = len(arr) - 1
+    while i >= 0 {
+        out = out + [arr[i]]
+        i = i - 1
+    }
+    return out
+}
+
+func slice(arr, start, end) {
+    let out = []
+    if start < 0 {
+        start = 0
+    }
+    if end > len(arr) {
+        end = len(arr)
+    }
+    let i = start
+    while i < end {
+        out = out + [arr[i]]
+        i = i + 1
+    }
+    return out
+}
+
+func take(arr, n) {
+    return slice(arr, 0, n)
+}
+
+func drop(arr, n) {
+    return slice(arr, n, len(arr))
+}
+
+func concat(a, b) {
+    return a + b
+}
+
+func push(arr, v) {
+    return arr + [v]
+}
+
+# -> [array_without_last, last_value]; [same_array, nullx] when empty
+func pop(arr) {
+    if len(arr) == 0 {
+        return [arr, nullx]
+    }
+    return [slice(arr, 0, len(arr) - 1), arr[len(arr) - 1]]
+}
+
+func unshift(arr, v) {
+    return [v] + arr
+}
+
+# -> [array_without_first, first_value]
+func shift(arr) {
+    if len(arr) == 0 {
+        return [arr, nullx]
+    }
+    return [slice(arr, 1, len(arr)), arr[0]]
+}
+
+func insert_at(arr, i, v) {
+    if i < 0 {
+        i = 0
+    }
+    if i > len(arr) {
+        i = len(arr)
+    }
+    let out = slice(arr, 0, i)
+    out = out + [v]
+    return out + slice(arr, i, len(arr))
+}
+
+func remove_at(arr, i) {
+    if i < 0 || i >= len(arr) {
+        throwx "remove_at: index out of range"
+    }
+    return slice(arr, 0, i) + slice(arr, i + 1, len(arr))
+}
+
+# mutates arr in place
+func swap(arr, i, j) {
+    if i < 0 || i >= len(arr) || j < 0 || j >= len(arr) {
+        throwx "swap: index out of range"
+    }
+    let tmp = arr[i]
+    arr[i] = arr[j]
+    arr[j] = tmp
+    return arr
+}
+
+func flatten(arr) {
+    let out = []
+    for x in arr {
+        if typeofx(x) == "array" {
+            out = out + x
+        } else {
+            out = out + [x]
+        }
+    }
+    return out
+}
+
+func unique(arr) {
+    let out = []
+    for x in arr {
+        if !includes(out, x) {
+            out = out + [x]
+        }
+    }
+    return out
+}
+
+# -> [[matched], [not_matched]]
+func partition(arr, fn) {
+    let yes = []
+    let no = []
+    for x in arr {
+        if fn(x) {
+            yes = yes + [x]
+        } else {
+            no = no + [x]
+        }
+    }
+    return [yes, no]
+}
+
+# cmp(a, b) < 0 means a comes first. Selection sort, not stable.
+func sort_by(arr, cmp) {
+    let a = arr + []
+    let i = 0
+    while i < len(a) {
+        let best = i
+        let j = i + 1
+        while j < len(a) {
+            if cmp(a[j], a[best]) < 0 {
+                best = j
+            }
+            j = j + 1
+        }
+        if best != i {
+            let tmp = a[i]
+            a[i] = a[best]
+            a[best] = tmp
+        }
+        i = i + 1
+    }
+    return a
+}

@@ -1,0 +1,28 @@
+# examples/06_database_sqlite/52_sqlite_relational.mx
+# Relational database queries with JOIN across multiple tables
+
+mountx
+importx db
+
+let conn = db.open(":memory:")
+
+db.exec(conn, "CREATE TABLE authors (id INTEGER PRIMARY KEY, name TEXT);")
+db.exec(conn, "CREATE TABLE books (id INTEGER PRIMARY KEY, author_id INTEGER, title TEXT, year INTEGER);")
+
+db.exec(conn, "INSERT INTO authors VALUES (1, 'George Orwell'), (2, 'J.R.R. Tolkien');")
+db.exec(conn, "INSERT INTO books VALUES (101, 1, '1984', 1949);")
+db.exec(conn, "INSERT INTO books VALUES (102, 1, 'Animal Farm', 1945);")
+db.exec(conn, "INSERT INTO books VALUES (103, 2, 'The Hobbit', 1937);")
+db.exec(conn, "INSERT INTO books VALUES (104, 2, 'The Fellowship of the Ring', 1954);")
+
+printx("Relational query (INNER JOIN):")
+let query = "SELECT books.title, authors.name, books.year FROM books INNER JOIN authors ON books.author_id = authors.id ORDER BY books.year;"
+let rows = db.query(conn, query)
+
+for r in rows {
+    printx("  '" + r[0] + "' by " + r[1] + " (" + r[2] + ")")
+}
+
+db.close(conn)
+
+unmountx

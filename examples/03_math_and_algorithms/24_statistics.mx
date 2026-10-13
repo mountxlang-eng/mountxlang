@@ -1,0 +1,56 @@
+# examples/03_math_and_algorithms/24_statistics.mx
+# Descriptive statistics: mean, median, variance, and standard deviation
+
+mountx
+importx mathfull
+importx arrayfull
+
+func calculate_mean(arr) {
+    if len(arr) == 0 { return 0.0 }
+    let total = 0.0
+    for x in arr {
+        total = total + x
+    }
+    return total / len(arr)
+}
+
+func compare_numbers(a, b) {
+    if a < b { return -1 }
+    if a > b { return 1 }
+    return 0
+}
+
+func calculate_median(arr) {
+    if len(arr) == 0 { return 0.0 }
+    let sorted = arrayfull.sort_by(arr, compare_numbers)
+    let n = len(sorted)
+    let mid = mathfull.idiv(n, 2)
+    if n % 2 != 0 {
+        return sorted[mid]
+    }
+    return (sorted[mid - 1] + sorted[mid]) / 2.0
+}
+
+func calculate_variance(arr) {
+    let mean = calculate_mean(arr)
+    let sum_sq_diff = 0.0
+    for x in arr {
+        let diff = x - mean
+        sum_sq_diff = sum_sq_diff + (diff * diff)
+    }
+    return sum_sq_diff / len(arr)
+}
+
+let dataset = [12, 15, 12, 18, 20, 22, 19, 14, 16, 22]
+printx("Dataset: " + dataset)
+let mean = calculate_mean(dataset)
+let median = calculate_median(dataset)
+let variance = calculate_variance(dataset)
+let stddev = mathfull.sqrt(variance)
+
+printx("Mean: " + mean)
+printx("Median: " + median)
+printx("Variance: " + variance)
+printx("Standard Deviation: " + stddev)
+
+unmountx

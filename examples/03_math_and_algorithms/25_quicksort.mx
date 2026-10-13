@@ -1,0 +1,34 @@
+# examples/03_math_and_algorithms/25_quicksort.mx
+# Functional QuickSort implementation in MountX
+
+mountx
+
+func quicksort(arr) {
+    if len(arr) <= 1 {
+        return arr
+    }
+    let pivot = arr[0]
+    let less = []
+    let equal = []
+    let greater = []
+
+    for x in arr {
+        if x < pivot {
+            less = less + [x]
+        } else if x > pivot {
+            greater = greater + [x]
+        } else {
+            equal = equal + [x]
+        }
+    }
+
+    return quicksort(less) + equal + quicksort(greater)
+}
+
+let unsorted = [64, 34, 25, 12, 22, 11, 90, 42, 88, 1, 53]
+printx("Unsorted list: " + unsorted)
+
+let sorted = quicksort(unsorted)
+printx("Sorted with QuickSort: " + sorted)
+
+unmountx

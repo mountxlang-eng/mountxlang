@@ -1,0 +1,39 @@
+# examples/03_math_and_algorithms/26_binary_search.mx
+# Binary Search algorithm with O(log n) time complexity
+
+mountx
+importx mathfull
+
+func binary_search(arr, target) {
+    let low = 0
+    let high = len(arr) - 1
+
+    while low <= high {
+        let mid = mathfull.idiv(low + high, 2)
+        let val = arr[mid]
+        if val == target {
+            return mid
+        }
+        if val < target {
+            low = mid + 1
+        } else {
+            high = mid - 1
+        }
+    }
+    return -1
+}
+
+let sorted_data = [2, 5, 8, 12, 16, 23, 38, 45, 56, 72, 91]
+printx("Sorted dataset: " + sorted_data)
+
+let targets = [23, 8, 91, 100, 1]
+for t in targets {
+    let idx = binary_search(sorted_data, t)
+    if idx >= 0 {
+        printx("Found " + t + " at index " + idx)
+    } else {
+        printx("Target " + t + " not found")
+    }
+}
+
+unmountx

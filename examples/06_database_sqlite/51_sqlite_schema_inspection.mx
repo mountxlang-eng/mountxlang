@@ -1,0 +1,34 @@
+# examples/06_database_sqlite/51_sqlite_schema_inspection.mx
+# Inspecting database schema, table metadata, and PRAGMA information
+
+mountx
+importx db
+
+let conn = db.open(":memory:")
+
+db.exec(conn, "CREATE TABLE employees (id INTEGER PRIMARY KEY, name TEXT NOT NULL, dept TEXT, salary REAL DEFAULT 50000.0);")
+db.exec(conn, "CREATE TABLE departments (dept_id TEXT PRIMARY KEY, location TEXT);")
+
+printx("Inspecting SQLite database schema:")
+
+# Query sqlite_master for all user tables
+let tables = db.query(conn, "SELECT name, type FROM sqlite_master WHERE type='table' ORDER BY name;")
+printx("Tables created:")
+for t in tables {
+    printx("  - " + t[0] + " (" + t[1] + ")")
+}
+
+# Query PRAGMA table_info to inspect column structure
+printx("\nColumns in 'employees' table:")
+let cols = db.query(conn, "PRAGMA table_info(employees);")
+for c in cols {
+    let col_name = c[1]
+    let col_type = c[2]
+    let not_null = c[3]
+    let is_pk = c[5]
+    printx("  Column '" + col_name + "': Type=" + col_type + ", NotNull=" + not_null + ", PrimaryKey=" + is_pk)
+}
+
+db.close(conn)
+
+unmountx

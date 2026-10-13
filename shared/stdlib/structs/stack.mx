@@ -1,0 +1,53 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# stack.mx - LIFO stack (O(1) push/pop via a count cursor)
+
+classx Stack {
+    let items = []
+    let n = 0
+
+    func push(v) {
+        this.items = this.items + [v]
+        this.n = this.n + 1
+        return this
+    }
+
+    # nullx when empty
+    func pop() {
+        if this.n == 0 {
+            return nullx
+        }
+        this.n = this.n - 1
+        return this.items[this.n]
+    }
+
+    func peek() {
+        if this.n == 0 {
+            return nullx
+        }
+        return this.items[this.n - 1]
+    }
+
+    func size() {
+        return this.n
+    }
+
+    func is_empty() {
+        return this.n == 0
+    }
+
+    func clear() {
+        this.items = []
+        this.n = 0
+    }
+
+    # bottom -> top
+    func to_array() {
+        let out = []
+        let i = 0
+        while i < this.n {
+            out = out + [this.items[i]]
+            i = i + 1
+        }
+        return out
+    }
+}

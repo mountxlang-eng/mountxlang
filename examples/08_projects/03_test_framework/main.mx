@@ -1,0 +1,69 @@
+# examples/08_projects/03_test_framework/main.mx
+# Project 3: Unit Testing & Assertion Framework
+
+mountx
+importx time
+
+classx TestSuite {
+    let suite_name = ""
+    let passed = 0
+    let failed = 0
+    let start_ms = 0
+
+    func init(name) {
+        this.suite_name = name
+        this.passed = 0
+        this.failed = 0
+        this.start_ms = time.now_ms()
+        printx("\n=== Starting Test Suite: " + this.suite_name + " ===")
+    }
+
+    func assert_true(condition, desc) {
+        if condition {
+            printx("  PASS: " + desc)
+            this.passed = this.passed + 1
+        } else {
+            printx("  FAIL: " + desc + " (expected true, got false)")
+            this.failed = this.failed + 1
+        }
+    }
+
+    func assert_eq(actual, expected, desc) {
+        if actual == expected {
+            printx("  PASS: " + desc)
+            this.passed = this.passed + 1
+        } else {
+            printx("  FAIL: " + desc + " (expected " + expected + ", got " + actual + ")")
+            this.failed = this.failed + 1
+        }
+    }
+
+    func report() {
+        let elapsed = time.now_ms() - this.start_ms
+        printx("--------------------------------------------------")
+        printx("Results for [" + this.suite_name + "]:")
+        printx("  Passed: " + this.passed)
+        printx("  Failed: " + this.failed)
+        printx("  Time:   " + elapsed + " ms")
+        if this.failed == 0 {
+            printx("STATUS: ALL TESTS PASSED! ✔")
+        } else {
+            printx("STATUS: SOME TESTS FAILED! ✖")
+        }
+        printx("==================================================\n")
+    }
+}
+
+# Run a suite of tests on sample logic
+let suite = newx TestSuite("Math & Logic Verification")
+
+suite.assert_eq(2 + 2, 4, "Addition: 2 + 2 == 4")
+suite.assert_eq(10 - 7, 3, "Subtraction: 10 - 7 == 3")
+suite.assert_eq(6 * 7, 42, "Multiplication: 6 * 7 == 42")
+suite.assert_true(100 > 50, "Comparison: 100 > 50")
+suite.assert_eq("Mount" + "X", "MountX", "String concatenation")
+
+suite.report()
+printx("Project 3 finished cleanly.")
+
+unmountx

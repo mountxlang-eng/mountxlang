@@ -1,0 +1,223 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# map.mx - Map class (dict.Dict-compatible: has .keys/.values fields)
+# plus helpers for "pairs" values: [[key, value], ...] (what json.parse returns)
+
+func pairs_has(pairs, k) {
+    for p in pairs {
+        if p[0] == k {
+            return true
+        }
+    }
+    return false
+}
+
+# value or nullx
+func pairs_get(pairs, k) {
+    for p in pairs {
+        if p[0] == k {
+            return p[1]
+        }
+    }
+    return nullx
+}
+
+# updates the existing pair IN PLACE; otherwise returns a new list.
+# ALWAYS use the return value:  let ps = pairs_set(ps, "a", 1)
+func pairs_set(pairs, k, v) {
+    for p in pairs {
+        if p[0] == k {
+            p[1] = v
+            return pairs
+        }
+    }
+    return pairs + [[k, v]]
+}
+
+func pairs_remove(pairs, k) {
+    let out = []
+    for p in pairs {
+        if p[0] != k {
+            out = out + [p]
+        }
+    }
+    return out
+}
+
+func pairs_keys(pairs) {
+    let out = []
+    for p in pairs {
+        out = out + [p[0]]
+    }
+    return out
+}
+
+func pairs_values(pairs) {
+    let out = []
+    for p in pairs {
+        out = out + [p[1]]
+    }
+    return out
+}
+
+# entries from b override entries from a
+func pairs_merge(a, b) {
+    let out = a
+    for p in b {
+        out = pairs_set(out, p[0], p[1])
+    }
+    return out
+}
+
+classx Map {
+    let keys = []
+    let values = []
+
+    func _find(k) {
+        let i = 0
+        while i < len(this.keys) {
+            if this.keys[i] == k {
+                return i
+            }
+            i = i + 1
+        }
+        return -1
+    }
+
+    func set(k, v) {
+        let i = this._find(k)
+        if i >= 0 {
+            this.values[i] = v
+        } else {
+            this.keys = this.keys + [k]
+            this.values = this.values + [v]
+        }
+        return this
+    }
+
+    func get(k) {
+        let i = this._find(k)
+        if i >= 0 {
+            return this.values[i]
+        }
+        return nullx
+    }
+
+    func get_or_default(k, d) {
+        let i = this._find(k)
+        if i >= 0 {
+            return this.values[i]
+        }
+        return d
+    }
+
+    func has(k) {
+        return this._find(k) != -1
+    }
+
+    func remove(k) {
+        let i = this._find(k)
+        if i < 0 {
+            return false
+        }
+        let nk = []
+        let nv = []
+        let j = 0
+        while j < len(this.keys) {
+            if j != i {
+                nk = nk + [this.keys[j]]
+                nv = nv + [this.values[j]]
+            }
+            j = j + 1
+        }
+        this.keys = nk
+        this.values = nv
+        return true
+    }
+
+    func size() {
+        return len(this.keys)
+    }
+
+    func clear() {
+        this.keys = []
+        this.values = []
+    }
+
+    # returns the final value for k
+    func set_if_absent(k, v) {
+        let i = this._find(k)
+        if i >= 0 {
+            return this.values[i]
+        }
+        this.keys = this.keys + [k]
+        this.values = this.values + [v]
+        return v
+    }
+
+    # fn(old_value) -> new value; old is nullx when k is absent
+    func update(k, fn) {
+        let nv = fn(this.get_or_default(k, nullx))
+        this.set(k, nv)
+        return nv
+    }
+
+    func merge_pairs(pairs) {
+        for p in pairs {
+            this.set(p[0], p[1])
+        }
+        return this
+    }
+
+    # fn(old_value) -> new value, applied to every value
+    func map_values(fn) {
+        let i = 0
+        while i < len(this.values) {
+            this.values[i] = fn(this.values[i])
+            i = i + 1
+        }
+        return this
+    }
+
+    # fn(k, v) -> bool keeps the entry
+    func filter_entries(fn) {
+        let nk = []
+        let nv = []
+        let i = 0
+        while i < len(this.keys) {
+            if fn(this.keys[i], this.values[i]) {
+                nk = nk + [this.keys[i]]
+                nv = nv + [this.values[i]]
+            }
+            i = i + 1
+        }
+        this.keys = nk
+        this.values = nv
+        return this
+    }
+
+    func get_keys() {
+        return this.keys + []
+    }
+
+    func get_values() {
+        return this.values + []
+    }
+
+    # [[k, v], ...] - same shape json.parse produces
+    func entries() {
+        let out = []
+        let i = 0
+        while i < len(this.keys) {
+            out = out + [[this.keys[i], this.values[i]]]
+            i = i + 1
+        }
+        return out
+    }
+
+    func clone() {
+        let m = newx Map()
+        m.keys = this.keys + []
+        m.values = this.values + []
+        return m
+    }
+}

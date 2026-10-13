@@ -1,0 +1,22 @@
+# examples/07_networking_and_web/59_http_post_json.mx
+# Performing live HTTPS POST requests with JSON payload
+
+mountx
+importx net
+importx string
+
+printx("Sending HTTPS POST request with JSON payload...")
+
+let payload = "{\"device\": \"edge_server\", \"status\": \"online\", \"uptime\": 86400}"
+
+tryx {
+    let post_resp = net.post("https://httpbin.org/post", payload, "application/json")
+    printx("POST request completed successfully!")
+    if string.contains(post_resp, "edge_server") {
+        printx("Verified: Server echoed JSON body containing 'edge_server'!")
+    }
+} catchx (err) {
+    printx("Network request failed or offline: " + err)
+}
+
+unmountx

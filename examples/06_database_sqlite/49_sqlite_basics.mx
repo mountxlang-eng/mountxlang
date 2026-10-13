@@ -1,0 +1,23 @@
+# examples/06_database_sqlite/49_sqlite_basics.mx
+# SQLite in-memory database creation and simple queries
+
+mountx
+importx db
+
+let conn = db.open(":memory:")
+printx("Opened in-memory SQLite database. Connection ID: " + conn)
+
+db.exec(conn, "CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT, email TEXT);")
+db.exec(conn, "INSERT INTO users (name, email) VALUES ('Alice', 'alice@mountx.org');")
+db.exec(conn, "INSERT INTO users (name, email) VALUES ('Bob', 'bob@mountx.org');")
+
+let rows = db.query(conn, "SELECT id, name, email FROM users ORDER BY id;")
+printx("Users queried from database:")
+for r in rows {
+    printx("  ID: " + r[0] + " | Name: " + r[1] + " | Email: " + r[2])
+}
+
+db.close(conn)
+printx("Database closed.")
+
+unmountx

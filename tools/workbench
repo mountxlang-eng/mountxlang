@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# MountX AI Workbench Launcher
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export MOUNTX_STD="${REPO_DIR}/stdlib"
+export GSK_RENDERER="${GSK_RENDERER:-gl}"
+
+exec python3 "${REPO_DIR}/mountxai/workbench.py" "$@"
+
+

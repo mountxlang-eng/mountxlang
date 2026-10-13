@@ -1,0 +1,37 @@
+# examples/01_basics/10_lambda_iter.mx
+# Sequence operations with the iter module
+
+mountx
+importx iter
+
+# 1. Range generation
+let r1 = iter.range(5)
+printx("range(5): " + r1)
+
+let r2 = iter.range_from(10, 15)
+printx("range_from(10, 15): " + r2)
+
+let r3 = iter.range_step(0, 20, 5)
+printx("range_step(0, 20, 5): " + r3)
+
+# 2. Enumerate
+let fruits = ["Apple", "Banana", "Cherry"]
+printx("Enumerate fruits:")
+for pair in iter.enumerate(fruits) {
+    printx("  Index " + pair[0] + " -> " + pair[1])
+}
+
+# 3. Zip
+let names = ["Alice", "Bob", "Charlie"]
+let scores = [95, 88, 92]
+printx("Zipped students and scores:")
+for pair in iter.zip(names, scores) {
+    printx("  " + pair[0] + " scored " + pair[1])
+}
+
+# 4. Sliding windows & chunks
+let numbers = [1, 2, 3, 4, 5, 6]
+printx("Windows of size 3: " + iter.windows(numbers, 3))
+printx("Chunks of size 2: " + iter.chunks(numbers, 2))
+
+unmountx

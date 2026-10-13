@@ -1,0 +1,41 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# process.mx - process execution and subprocess management (system/)
+# Usage:
+#   importx process
+#   let res = process.run("echo hello")
+#   res.code    # 0
+#   res.output  # "hello\n"
+#   res.ok      # true
+
+classx ProcessResult {
+    let code = 0
+    let output = ""
+    let ok = false
+
+    func init(exit_code, out_text) {
+        this.code = exit_code
+        this.output = out_text
+        this.ok = (exit_code == 0)
+    }
+
+    func stdout() {
+        return this.output
+    }
+
+    func exit_code() {
+        return this.code
+    }
+
+    func success() {
+        return this.ok
+    }
+}
+
+func exec(cmd) {
+    let raw = sys_exec(cmd)
+    return newx ProcessResult(raw[0], raw[1])
+}
+
+func run(cmd) {
+    return exec(cmd)
+}

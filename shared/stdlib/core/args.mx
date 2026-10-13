@@ -1,0 +1,187 @@
+# Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved.
+# args.mx - command-line argument parser (core/)
+# Usage:
+#   importx args
+#   let p = newx args.ArgParser("mytool", "Tool description")
+#   p.add_flag("verbose", "v", "Enable verbose logging")
+#   p.add_opt("output", "o", "out.txt", "Output file path")
+#   p.add_arg("input", "Input file")
+#   let res = p.parse(args.get_args())
+
+importx string
+importx dict
+
+classx ArgParser {
+    let prog = ""
+    let description = ""
+    let _flags = nullx        # dict of name -> [short, help]
+    let _opts = nullx         # dict of name -> [short, default, help]
+    let _pos_defs = []        # array of [name, help]
+    let _results = nullx      # dict of name -> val
+    let _positionals = []     # parsed positional values
+
+    func init(prog, description) {
+        this.prog = prog
+        this.description = description
+        this._flags = newx dict.Dict()
+        this._opts = newx dict.Dict()
+        this._results = newx dict.Dict()
+        this._positionals = []
+        this._pos_defs = []
+    }
+
+    func add_flag(name, short_name, help_text) {
+        this._flags.set(name, [short_name, help_text])
+        this._results.set(name, false)
+        return this
+    }
+
+    func add_opt(name, short_name, default_val, help_text) {
+        this._opts.set(name, [short_name, default_val, help_text])
+        this._results.set(name, default_val)
+        return this
+    }
+
+    func add_arg(name, help_text) {
+        this._pos_defs = this._pos_defs + [[name, help_text]]
+        return this
+    }
+
+    func _find_flag_by_short(s) {
+        for k in this._flags.keys {
+            let meta = this._flags.get(k)
+            if meta[0] == s {
+                return k
+            }
+        }
+        return nullx
+    }
+
+    func _find_opt_by_short(s) {
+        for k in this._opts.keys {
+            let meta = this._opts.get(k)
+            if meta[0] == s {
+                return k
+            }
+        }
+        return nullx
+    }
+
+    func parse(argv) {
+        let i = 0
+        let pos_idx = 0
+        this._positionals = []
+
+        while i < len(argv) {
+            let arg = argv[i]
+            if string.starts_with(arg, "--") {
+                let key = string.substr(arg, 2, len(arg))
+                let eq_pos = string.index_of(key, "=")
+                if eq_pos >= 0 {
+                    let opt_name = string.substr(key, 0, eq_pos)
+                    let opt_val = string.substr(key, eq_pos + 1, len(key))
+                    if this._opts.has(opt_name) {
+                        this._results.set(opt_name, opt_val)
+                    } else if this._flags.has(opt_name) {
+                        this._results.set(opt_name, opt_val == "true" || opt_val == "1")
+                    }
+                } else {
+                    if this._flags.has(key) {
+                        this._results.set(key, true)
+                    } else if this._opts.has(key) {
+                        if i + 1 < len(argv) {
+                            i = i + 1
+                            this._results.set(key, argv[i])
+                        }
+                    }
+                }
+            } else if string.starts_with(arg, "-") && len(arg) > 1 {
+                let sh = string.substr(arg, 1, 2)
+                let flag_name = this._find_flag_by_short(sh)
+                if flag_name != nullx {
+                    this._results.set(flag_name, true)
+                } else {
+                    let opt_name = this._find_opt_by_short(sh)
+                    if opt_name != nullx {
+                        if len(arg) > 2 {
+                            this._results.set(opt_name, string.substr(arg, 2, len(arg)))
+                        } else if i + 1 < len(argv) {
+                            i = i + 1
+                            this._results.set(opt_name, argv[i])
+                        }
+                    }
+                }
+            } else {
+                this._positionals = this._positionals + [arg]
+                if pos_idx < len(this._pos_defs) {
+                    let def_name = this._pos_defs[pos_idx][0]
+                    this._results.set(def_name, arg)
+                    pos_idx = pos_idx + 1
+                }
+            }
+            i = i + 1
+        }
+        return this
+    }
+
+    func get(name) {
+        if this._results.has(name) {
+            return this._results.get(name)
+        }
+        return nullx
+    }
+
+    func has(name) {
+        if this._results.has(name) {
+            let v = this._results.get(name)
+            if v == true {
+                return true
+            }
+            return v != nullx && v != false && v != ""
+        }
+        return false
+    }
+
+    func positionals() {
+        return this._positionals
+    }
+
+    func help() {
+        let lines = []
+        lines = lines + ["Usage: " + this.prog + " [options]"]
+        if this.description != "" {
+            lines = lines + [this.description]
+        }
+        lines = lines + ["Options:"]
+        for k in this._flags.keys {
+            let meta = this._flags.get(k)
+            let s = meta[0]
+            let h = meta[1]
+            let prefix = "  --" + k
+            if s != "" {
+                prefix = prefix + ", -" + s
+            }
+            lines = lines + [prefix + " : " + h]
+        }
+        for k in this._opts.keys {
+            let meta = this._opts.get(k)
+            let s = meta[0]
+            let def_val = meta[1]
+            let h = meta[2]
+            let prefix = "  --" + k + " <val>"
+            if s != "" {
+                prefix = prefix + ", -" + s + " <val>"
+            }
+            lines = lines + [prefix + " : " + h + " (default: " + def_val + ")"]
+        }
+        return string.join(lines, "\n")
+    }
+}
+
+func get_args() {
+    return sys_args()
+}
+
+func create_parser(prog, desc) {
+    return newx ArgParser(prog, desc)
+}
