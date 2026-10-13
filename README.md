@@ -36,6 +36,7 @@ MountX combines the clean, expressive syntax of modern dynamic languages with th
 
 ## 🚀 Quickstart
 <img width="800" height="386" alt="MOUNTX" src="https://github.com/user-attachments/assets/838dd91d-f432-4c84-a4a5-677ee295136e" />
+<img width="1362" height="835" alt="Screenshot From 2026-10-13 23-47-23" src="https://github.com/user-attachments/assets/a4211cde-7cab-4c66-ba9f-8f2a9c9bb613" />
 
 ### 1. Run with Native High-Performance Binary
 ```bash
