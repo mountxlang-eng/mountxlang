@@ -34,7 +34,7 @@ MountX combines the clean, expressive syntax of modern dynamic languages with th
 ---
 
 ## 🚀 Quickstart
-![MountX Test Suite Passing](ide_screen_shoots/test_pass.png)
+![MountX Test Suite Passing](ide_screen_shoots/tests_pass.png.png)
 ### 1. Run with Native High-Performance Binary
 ```bash
 ./mountx-native program.mx
