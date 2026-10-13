@@ -32,6 +32,7 @@ MountX combines the clean, expressive syntax of modern dynamic languages with th
   Official VS Code extension with syntax highlighting and snippets (`mountx-1.0.0.vsix`), interactive REPL, and a GTK 4 / Libadwaita dark studio ([Workbench Studio](file:///home/theyad75/Desktop/antmountxlang/workbench)).
 
 ---
+<img width="1253" height="879" alt="tests_pass png" src="https://github.com/user-attachments/assets/c1ddf966-c766-4b8f-82d0-eee29e41732c" />
 
 ## 🚀 Quickstart
 <img width="800" height="386" alt="MOUNTX" src="https://github.com/user-attachments/assets/838dd91d-f432-4c84-a4a5-677ee295136e" />
