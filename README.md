@@ -12,6 +12,23 @@
 [![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](LICENSE)
 
 ---
+
+<div align="center">
+
+  <h1>MountX (.mx)</h1>
+  <p>A self-hosted dynamic programming language compiling to C99.</p>
+
+  <!-- Navigation Links -->
+  <h4>
+    <a href="https://mountxlang-eng.github.io/mountxlang/">📚 Official Documentation</a>
+    <span> · </span>
+    <a href="https://github.com/mountxlang-eng/mountxlang/releases">📦 Releases</a>
+    <span> · </span>
+    <a href="https://github.com/mountxlang-eng/mountxlang/issues">🐛 Report Bug</a>
+  </h4>
+
+</div>
+
 # MountX Programming Language
 
 ## 🌟 Key Highlights & Ecosystem
