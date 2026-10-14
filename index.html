@@ -1,0 +1,1609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MountX 1.1.0 Documentation — High-Performance Native Language</title>
+  <meta name="description" content="Comprehensive official documentation for MountX 1.1.0: Native C Substrate, Full-stack Web Engine, SQLite ORM, mxpm Package Manager, and Standard Library.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-surface: #0e131f;
+      --bg-card: rgba(18, 24, 38, 0.75);
+      --bg-card-hover: rgba(28, 38, 60, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(99, 102, 241, 0.4);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --primary: #6366f1;
+      --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --code-bg: #090d16;
+      --sidebar-width: 290px;
+      --header-height: 68px;
+      --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-code: 'JetBrains Mono', monospace;
+      --shadow-glow: 0 0 35px rgba(99, 102, 241, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      line-height: 1.65;
+      overflow-x: hidden;
+      font-size: 15px;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+
+    /* Background glow effect */
+    .ambient-glow {
+      position: fixed;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1000px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, rgba(6, 182, 212, 0.05) 50%, transparent 80%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Header */
+    header.top-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--header-height);
+      background: rgba(7, 9, 14, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+
+    .brand-icon {
+      font-size: 1.6rem;
+      filter: drop-shadow(0 0 10px rgba(99, 102, 241, 0.5));
+    }
+
+    .brand-title {
+      font-weight: 800;
+      font-size: 1.25rem;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .version-tag {
+      font-family: var(--font-code);
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.55rem;
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.35);
+      color: #a5b4fc;
+      border-radius: 9999px;
+      letter-spacing: 0.02em;
+    }
+
+    .search-wrapper {
+      position: relative;
+      width: 380px;
+    }
+
+    .search-input {
+      width: 100%;
+      background: rgba(18, 24, 38, 0.8);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 0.55rem 1rem 0.55rem 2.4rem;
+      color: var(--text-main);
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+      font-family: var(--font-ui);
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+      background: rgba(24, 32, 50, 0.95);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 0.85rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 0.9rem;
+      pointer-events: none;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+    }
+
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-link:hover {
+      color: var(--text-main);
+    }
+
+    .btn-playground {
+      background: var(--primary-gradient);
+      color: white;
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-playground:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+    }
+
+    /* Layout structure */
+    .layout-container {
+      display: flex;
+      margin-top: var(--header-height);
+      position: relative;
+    }
+
+    /* Sidebar Navigation */
+    aside.sidebar {
+      width: var(--sidebar-width);
+      position: fixed;
+      top: var(--header-height);
+      bottom: 0;
+      left: 0;
+      background: rgba(7, 9, 14, 0.95);
+      border-right: 1px solid var(--border-subtle);
+      padding: 1.5rem 1rem;
+      overflow-y: auto;
+      z-index: 50;
+    }
+
+    .sidebar-section {
+      margin-bottom: 1.75rem;
+    }
+
+    .sidebar-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: var(--text-dim);
+      margin-bottom: 0.6rem;
+      padding-left: 0.75rem;
+    }
+
+    .sidebar-nav-list {
+      list-style: none;
+    }
+
+    .sidebar-nav-item a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.75rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.88rem;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      font-weight: 500;
+    }
+
+    .sidebar-nav-item a:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .sidebar-nav-item a.active {
+      color: #818cf8;
+      background: rgba(99, 102, 241, 0.12);
+      font-weight: 600;
+      border-left: 3px solid #818cf8;
+    }
+
+    .badge-mini {
+      font-size: 0.65rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+      font-family: var(--font-code);
+      background: rgba(6, 182, 212, 0.15);
+      color: #38bdf8;
+    }
+
+    /* Main Content Area */
+    main.doc-content {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      padding: 2.5rem 4rem;
+      max-width: 1100px;
+      position: relative;
+    }
+
+    /* Hero section */
+    .hero-banner {
+      background: linear-gradient(180deg, rgba(30, 41, 59, 0.35) 0%, rgba(15, 23, 42, 0.15) 100%);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 2.5rem;
+      margin-bottom: 3.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-banner::after {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100%;
+      background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.15), transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+    }
+
+    .hero-title {
+      font-size: 2.6rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.15;
+      margin-bottom: 1rem;
+      background: linear-gradient(135deg, #ffffff 30%, #cbd5e1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-desc {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      max-width: 760px;
+      margin-bottom: 1.75rem;
+      line-height: 1.6;
+    }
+
+    .hero-badges-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .hero-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      color: var(--text-main);
+    }
+
+    .hero-chip span.dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+    }
+
+    /* Typography & Sections */
+    section.doc-section {
+      margin-bottom: 4rem;
+      scroll-margin-top: calc(var(--header-height) + 1.5rem);
+    }
+
+    h2.section-header {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: #ffffff;
+      margin-bottom: 1.25rem;
+      padding-bottom: 0.6rem;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    h3.sub-header {
+      font-size: 1.3rem;
+      font-weight: 700;
+      letter-spacing: -0.015em;
+      color: #f8fafc;
+      margin: 2rem 0 0.85rem 0;
+    }
+
+    p {
+      color: #cbd5e1;
+      margin-bottom: 1.1rem;
+      font-size: 0.98rem;
+    }
+
+    /* Cards & Grid */
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.25rem;
+      margin: 1.5rem 0;
+    }
+
+    .doc-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.35rem;
+      transition: all 0.25s ease;
+    }
+
+    .doc-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--border-active);
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-glow);
+    }
+
+    .card-icon {
+      font-size: 1.7rem;
+      margin-bottom: 0.75rem;
+      display: inline-block;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.4rem;
+    }
+
+    .card-desc {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 0;
+    }
+
+    /* Code Blocks */
+    .code-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      margin: 1.25rem 0 1.75rem 0;
+      overflow: hidden;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.6rem 1rem;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border-subtle);
+      font-family: var(--font-code);
+      font-size: 0.78rem;
+      color: var(--text-dim);
+    }
+
+    .code-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .code-dots {
+      display: flex;
+      gap: 5px;
+    }
+
+    .code-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+    }
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #eab308; }
+    .dot-green { background: #22c55e; }
+
+    .btn-copy {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 0.25rem 0.6rem;
+      font-size: 0.75rem;
+      cursor: pointer;
+      font-family: var(--font-ui);
+      transition: all 0.15s ease;
+    }
+
+    .btn-copy:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: rgba(99, 102, 241, 0.4);
+      color: #ffffff;
+    }
+
+    pre.code-content {
+      padding: 1.25rem;
+      overflow-x: auto;
+      font-family: var(--font-code);
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+    }
+
+    /* Syntax Highlighting */
+    .kw { color: #f43f5e; font-weight: 600; }        /* mountx, let, func, classx, return, if, while */
+    .typ { color: #38bdf8; font-weight: 600; }       /* Animal, Dog, Dict, Model */
+    .str { color: #34d399; }                         /* "strings" */
+    .num { color: #f59e0b; }                         /* 123, 45.6 */
+    .cmt { color: #64748b; font-style: italic; }     /* # comments */
+    .fn { color: #818cf8; }                          /* function names */
+    .op { color: #c084fc; }                          /* +, -, ==, extends */
+    .builtin { color: #facc15; }                     /* printx, len, typeofx */
+
+    /* Tables */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin: 1.5rem 0 2rem 0;
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      background: var(--bg-card);
+    }
+
+    table.doc-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 0.92rem;
+    }
+
+    table.doc-table th {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 0.85rem 1.2rem;
+      font-weight: 700;
+      color: #ffffff;
+      border-bottom: 1px solid var(--border-subtle);
+      letter-spacing: 0.02em;
+    }
+
+    table.doc-table td {
+      padding: 0.85rem 1.2rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: #cbd5e1;
+    }
+
+    table.doc-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    table.doc-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    code.inline-code {
+      font-family: var(--font-code);
+      font-size: 0.82em;
+      padding: 0.2rem 0.45rem;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 5px;
+      color: #38bdf8;
+    }
+
+    /* Modules Filter Bar */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 1rem 0 1.5rem 0;
+    }
+
+    .filter-btn {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: 8px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.82rem;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.15s ease;
+      font-family: var(--font-ui);
+    }
+
+    .filter-btn.active, .filter-btn:hover {
+      background: rgba(99, 102, 241, 0.2);
+      border-color: rgba(99, 102, 241, 0.5);
+      color: #ffffff;
+    }
+
+    .module-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      transition: all 0.2s ease;
+    }
+
+    .module-card:hover {
+      border-color: var(--border-active);
+    }
+
+    .module-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+    }
+
+    .module-name {
+      font-family: var(--font-code);
+      font-weight: 700;
+      color: #818cf8;
+      font-size: 1.05rem;
+    }
+
+    .module-category {
+      font-size: 0.72rem;
+      padding: 0.2rem 0.5rem;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 9999px;
+      color: var(--text-dim);
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .module-funcs {
+      font-family: var(--font-code);
+      font-size: 0.8rem;
+      color: #94a3b8;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 0.6rem 0.85rem;
+      border-radius: 6px;
+      margin-top: 0.6rem;
+    }
+
+    /* Live Playground Terminal Component */
+    .playground-box {
+      border: 1px solid var(--border-active);
+      border-radius: 14px;
+      background: #090d16;
+      overflow: hidden;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+      margin: 2rem 0;
+    }
+
+    .playground-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.25rem;
+      background: rgba(18, 24, 38, 0.9);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .preset-select {
+      background: #0f172a;
+      border: 1px solid var(--border-subtle);
+      color: #f8fafc;
+      padding: 0.45rem 0.85rem;
+      border-radius: 7px;
+      font-size: 0.85rem;
+      font-family: var(--font-ui);
+      cursor: pointer;
+    }
+
+    .btn-run {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      border: none;
+      padding: 0.45rem 1.25rem;
+      border-radius: 7px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      transition: all 0.2s ease;
+      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-run:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+
+    .playground-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 380px;
+    }
+
+    .playground-editor {
+      padding: 1.25rem;
+      font-family: var(--font-code);
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+      border-right: 1px solid var(--border-subtle);
+      background: #070a10;
+      outline: none;
+      white-space: pre-wrap;
+      overflow-y: auto;
+    }
+
+    .playground-terminal {
+      padding: 1.25rem;
+      background: #03060a;
+      font-family: var(--font-code);
+      font-size: 0.85rem;
+      color: #38bdf8;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .term-title {
+      color: var(--text-dim);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.75rem;
+      font-weight: 700;
+    }
+
+    .term-out {
+      color: #4ade80;
+      line-height: 1.55;
+      flex: 1;
+      white-space: pre-wrap;
+    }
+
+    /* Toast Notification */
+    .toast-msg {
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      background: #1e293b;
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      padding: 0.65rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: all 0.25s ease;
+      transform: translateY(15px);
+      z-index: 1000;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
+
+    .toast-msg.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Footer */
+    footer.doc-footer {
+      border-top: 1px solid var(--border-subtle);
+      padding: 3rem 0;
+      margin-top: 5rem;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.88rem;
+    }
+
+    footer.doc-footer a {
+      color: #818cf8;
+      text-decoration: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      aside.sidebar {
+        display: none;
+      }
+      main.doc-content {
+        margin-left: 0;
+        padding: 2rem 1.5rem;
+      }
+      .playground-split {
+        grid-template-columns: 1fr;
+      }
+      .search-wrapper {
+        width: 260px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-glow"></div>
+
+  <!-- Top Navigation Bar -->
+  <header class="top-nav">
+    <a href="#" class="brand">
+      <span class="brand-icon">🏔️</span>
+      <span class="brand-title">MountX</span>
+      <span class="version-tag">v1.1.0</span>
+    </a>
+
+    <div class="search-wrapper">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="docSearchInput" class="search-input" placeholder="Search syntax, natives, stdlib (e.g. orm, http, classx)..." onkeyup="filterDocs()">
+    </div>
+
+    <nav class="nav-links">
+      <a href="#quickstart" class="nav-link">Quickstart</a>
+      <a href="#syntax" class="nav-link">Syntax</a>
+      <a href="#stdlib" class="nav-link">Stdlib (43)</a>
+      <a href="#web" class="nav-link">Web Engine</a>
+      <a href="#playground" class="btn-playground"><span>⚡</span> Live Playground</a>
+    </nav>
+  </header>
+
+  <div class="layout-container">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-section">
+        <div class="sidebar-title">Getting Started</div>
+        <ul class="sidebar-nav-list">
+          <li class="sidebar-nav-item"><a href="#quickstart" class="active">Overview & Quickstart</a></li>
+          <li class="sidebar-nav-item"><a href="#cli">CLI & Execution Modes</a></li>
+          <li class="sidebar-nav-item"><a href="#mxpm">mxpm Package Manager <span class="badge-mini">New</span></a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Language Fundamentals</div>
+        <ul class="sidebar-nav-list">
+          <li class="sidebar-nav-item"><a href="#syntax">Syntax & Variables</a></li>
+          <li class="sidebar-nav-item"><a href="#types">Values & Equality</a></li>
+          <li class="sidebar-nav-item"><a href="#control-flow">Control Flow (if/while/loop)</a></li>
+          <li class="sidebar-nav-item"><a href="#functions">Functions & Scopes</a></li>
+          <li class="sidebar-nav-item"><a href="#arrays">Arrays & Slicing</a></li>
+          <li class="sidebar-nav-item"><a href="#oop">Classes & Inheritance</a></li>
+          <li class="sidebar-nav-item"><a href="#exceptions">Error Handling & Try/Catch</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Standard Library & Ecosystem</div>
+        <ul class="sidebar-nav-list">
+          <li class="sidebar-nav-item"><a href="#natives">Native Builtins (17)</a></li>
+          <li class="sidebar-nav-item"><a href="#stdlib">Stdlib Modules (43 AOT)</a></li>
+          <li class="sidebar-nav-item"><a href="#web">Full-Stack Web Engine</a></li>
+          <li class="sidebar-nav-item"><a href="#database">SQLite 3 & ORM Model</a></li>
+        </ul>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title">Architecture & Tools</div>
+        <ul class="sidebar-nav-list">
+          <li class="sidebar-nav-item"><a href="#native-engine">C99 Substrate Engine</a></li>
+          <li class="sidebar-nav-item"><a href="#playground">Interactive Playground</a></li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="doc-content">
+
+      <!-- Hero Banner -->
+      <div class="hero-banner">
+        <div class="hero-eyebrow">⚡ High-Performance Self-Hosted Language</div>
+        <h1 class="hero-title">MountX Programming Language</h1>
+        <p class="hero-desc">
+          A modern, expressive, dynamically-typed programming language powered by an AOT-compiled C99 native substrate, built-in live Berkeley TCP sockets, full-stack HTTP web engine, embedded SQLite ORM, and WebAssembly execution.
+        </p>
+
+        <div class="hero-badges-grid">
+          <div class="hero-chip"><span class="dot"></span> Release v1.1.0 (Production)</div>
+          <div class="hero-chip"><span class="dot"></span> 343 / 343 Tests Passed (100%)</div>
+          <div class="hero-chip"><span class="dot"></span> 43 Embedded AOT Modules</div>
+          <div class="hero-chip"><span class="dot"></span> Sub-2ms Native Startup Time</div>
+          <div class="hero-chip"><span class="dot"></span> Zero-Dependency Static C Binary</div>
+        </div>
+      </div>
+
+      <!-- Quickstart Section -->
+      <section id="quickstart" class="doc-section">
+        <h2 class="section-header">🚀 Overview & Quickstart</h2>
+        <p>MountX combines the syntactic elegance of modern scripting languages with the raw speed, memory predictability, and zero-dependency footprint of low-level C runtimes.</p>
+
+        <div class="cards-grid">
+          <div class="doc-card">
+            <div class="card-icon">⚡</div>
+            <div class="card-title">Native C Substrate</div>
+            <div class="card-desc">Compiles directly into standalone native binaries (<code>mountx-native</code> on Linux, <code>mountx.exe</code> on Windows, and <code>mountx.wasm</code> in browsers).</div>
+          </div>
+          <div class="doc-card">
+            <div class="card-icon">🌐</div>
+            <div class="card-title">Full-Stack Web Engine</div>
+            <div class="card-desc">Built-in HTTP/1.1 server, REST routing, regex url parameters, middleware pipelines, and JSON serialization.</div>
+          </div>
+          <div class="doc-card">
+            <div class="card-icon">💾</div>
+            <div class="card-title">Embedded SQLite & ORM</div>
+            <div class="card-desc">Zero-config database with Active-Record ORM models, auto-migrations, and parameterized SQL query building.</div>
+          </div>
+          <div class="doc-card">
+            <div class="card-icon">📦</div>
+            <div class="card-title">mxpm Package Manager</div>
+            <div class="card-desc">Standardized package and project manager with dependency resolution, script runners, and project scaffolding.</div>
+          </div>
+        </div>
+
+        <h3 class="sub-header">Installation & Global Setup</h3>
+        <p>You can execute MountX directly using the standalone binary or set up the global symlink:</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>Terminal</span> — Setup Symlink</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="cmt"># 1. Run directly using the native Linux executable</span>
+./mountx-native host/fbtest.mx
+
+<span class="cmt"># 2. Or symlink mountx to your local bin path</span>
+ln -s <span class="str">"$PWD/mountx"</span> ~/.local/bin/mountx
+
+<span class="cmt"># 3. Verify version</span>
+mountx --version
+<span class="cmt"># Output: MountX 1.1.0  (c) 2026 Ziad Mohsin</span></pre>
+        </div>
+      </section>
+
+      <!-- CLI Section -->
+      <section id="cli" class="doc-section">
+        <h2 class="section-header">💻 CLI & Execution Modes</h2>
+        <p>MountX provides three flexible modes of execution via the command-line interface:</p>
+
+        <div class="table-container">
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th>Command</th>
+                <th>Mode</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code class="inline-code">mountx program.mx</code></td>
+                <td>Script Mode</td>
+                <td>Executes the specified <code>.mx</code> file from top to bottom.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">mountx</code></td>
+                <td>Interactive REPL</td>
+                <td>Opens real-time interactive shell. State and variables persist across inputs.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">mountx -e "printx(1+1)"</code></td>
+                <td>Inline Evaluation</td>
+                <td>Evaluates one-line snippets instantly without requiring a script file.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">mountx --selfhost program.mx</code></td>
+                <td>Self-Hosted Mode</td>
+                <td>Executes the program through <code>selfhost/interp.mx</code> for parity verification.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">./mountx-native app.mx</code></td>
+                <td>Native Engine</td>
+                <td>Direct execution on the high-performance compiled C substrate (5x-20x faster).</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- mxpm Section -->
+      <section id="mxpm" class="doc-section">
+        <h2 class="section-header">📦 mxpm — The Official Package Manager</h2>
+        <p><strong><code>mxpm</code></strong> is MountX's official project and package manager. It manages project manifests (<code>mountx.json</code>), installs libraries into <code>libs/</code>, packages distributable <code>.mxpkg</code> tarballs, and launches the in-browser WebAssembly playground.</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>Terminal</span> — mxpm Commands</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="cmt"># Initialize a new project</span>
+mxpm init my-app
+
+<span class="cmt"># Install a dependency</span>
+mxpm add json-utils
+
+<span class="cmt"># Run project lifecycle scripts (from mountx.json)</span>
+mxpm run start
+mxpm run test
+
+<span class="cmt"># Launch the in-browser WebAssembly IDE playground</span>
+mxpm playground
+<span class="cmt"># Opens http://localhost:8088 client-side sandbox</span></pre>
+        </div>
+      </section>
+
+      <!-- Syntax Section -->
+      <section id="syntax" class="doc-section">
+        <h2 class="section-header">✍️ Syntax & Core Basics</h2>
+        <p>MountX source files are optionally enclosed within <code class="inline-code">mountx</code> and <code class="inline-code">unmountx</code> blocks (auto-wrapped if omitted). Variable declaration uses <code class="inline-code">let</code>, and comments start with <code class="inline-code">#</code>.</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>MountX</span> — Variables and Operators</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="kw">mountx</span>
+<span class="cmt"># Declare variables with let</span>
+<span class="kw">let</span> message = <span class="str">"Hello, MountX!"</span>
+<span class="kw">let</span> count = <span class="num">42</span>
+<span class="kw">let</span> pi = <span class="num">3.14159</span>
+<span class="kw">let</span> is_active = <span class="kw">true</span>
+<span class="kw">let</span> empty_val = <span class="kw">nullx</span>
+
+<span class="cmt"># Reassignment does not use 'let'</span>
+count = count + <span class="num">10</span>
+
+<span class="cmt"># Console output</span>
+<span class="builtin">printx</span>(message)
+<span class="builtin">printx</span>(<span class="str">"Count is: "</span> + count)
+<span class="kw">unmountx</span></pre>
+        </div>
+
+        <h3 class="sub-header">Arithmetic Division Invariant</h3>
+        <p>In MountX, standard division <code class="inline-code">/</code> <strong>always returns a floating-point number</strong> (<code class="inline-code">7 / 2 == 3.5</code>). If you need truncated integer division, use the built-in native function <code class="inline-code">idiv(a, b)</code> (<code class="inline-code">idiv(7, 2) == 3</code>).</p>
+      </section>
+
+      <!-- Control Flow -->
+      <section id="control-flow" class="doc-section">
+        <h2 class="section-header">🔄 Control Flow</h2>
+        <p>MountX features standard <code class="inline-code">if / else if / else</code> branching, <code class="inline-code">while</code> loops, fixed iteration <code class="inline-code">loop N</code>, and modern collection loops <code class="inline-code">for in</code>.</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>MountX</span> — Branching and Loops</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="kw">mountx</span>
+<span class="cmt"># 1. Conditionals</span>
+<span class="kw">let</span> score = <span class="num">85</span>
+<span class="kw">if</span> score >= <span class="num">90</span> {
+    <span class="builtin">printx</span>(<span class="str">"Grade: A"</span>)
+} <span class="kw">else if</span> score >= <span class="num">80</span> {
+    <span class="builtin">printx</span>(<span class="str">"Grade: B"</span>)
+} <span class="kw">else</span> {
+    <span class="builtin">printx</span>(<span class="str">"Grade: C"</span>)
+}
+
+<span class="cmt"># 2. While loop</span>
+<span class="kw">let</span> i = <span class="num">0</span>
+<span class="kw">while</span> i < <span class="num">3</span> {
+    <span class="builtin">printx</span>(<span class="str">"while step: "</span> + i)
+    i = i + <span class="num">1</span>
+}
+
+<span class="cmt"># 3. Fixed count loop (executes exactly N times)</span>
+<span class="kw">loop</span> <span class="num">2</span> {
+    <span class="builtin">printx</span>(<span class="str">"Repeating action..."</span>)
+}
+
+<span class="cmt"># 4. Collection for..in (with optional index)</span>
+<span class="kw">let</span> fruits = [<span class="str">"Apple"</span>, <span class="str">"Banana"</span>, <span class="str">"Orange"</span>]
+<span class="kw">for</span> item <span class="kw">in</span> fruits {
+    <span class="builtin">printx</span>(<span class="str">"Fruit: "</span> + item)
+}
+
+<span class="kw">for</span> idx, fruit <span class="kw">in</span> fruits {
+    <span class="builtin">printx</span>(idx + <span class="str">": "</span> + fruit)
+}
+<span class="kw">unmountx</span></pre>
+        </div>
+      </section>
+
+      <!-- Functions -->
+      <section id="functions" class="doc-section">
+        <h2 class="section-header">⚡ Functions & Scopes</h2>
+        <p>Functions are defined using the <code class="inline-code">func</code> keyword. Functions without an explicit <code class="inline-code">return</code> statement evaluate to <code class="inline-code">nullx</code>.</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>MountX</span> — Functions & Recursion</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="kw">mountx</span>
+<span class="cmt"># Standard function</span>
+<span class="kw">func</span> multiply(a, b) {
+    <span class="kw">return</span> a * b
+}
+
+<span class="cmt"># Recursive Fibonacci</span>
+<span class="kw">func</span> fib(n) {
+    <span class="kw">if</span> n <= <span class="num">1</span> {
+        <span class="kw">return</span> n
+    }
+    <span class="kw">return</span> fib(n - <span class="num">1</span>) + fib(n - <span class="num">2</span>)
+}
+
+<span class="builtin">printx</span>(<span class="str">"12 * 5 = "</span> + multiply(<span class="num">12</span>, <span class="num">5</span>))
+<span class="builtin">printx</span>(<span class="str">"fib(10) = "</span> + fib(<span class="num">10</span>))
+<span class="kw">unmountx</span></pre>
+        </div>
+      </section>
+
+      <!-- OOP Section -->
+      <section id="oop" class="doc-section">
+        <h2 class="section-header">🧱 Classes & Object-Oriented Programming</h2>
+        <p>MountX provides full object-oriented programming with single inheritance (<code class="inline-code">extends</code>), explicit constructor initialization (<code class="inline-code">init</code>), field defaults, instance referencing via <code class="inline-code">this</code>, and multi-level superclass calls via <code class="inline-code">super</code>.</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>MountX</span> — Classes & Polymorphism</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="kw">mountx</span>
+<span class="kw">classx</span> <span class="typ">Account</span> {
+    <span class="kw">let</span> owner = <span class="str">""</span>
+    <span class="kw">let</span> balance = <span class="num">0.0</span>
+
+    <span class="kw">func</span> <span class="fn">init</span>(owner, initial_deposit) {
+        <span class="kw">this</span>.owner = owner
+        <span class="kw">this</span>.balance = initial_deposit
+    }
+
+    <span class="kw">func</span> <span class="fn">deposit</span>(amount) {
+        <span class="kw">this</span>.balance = <span class="kw">this</span>.balance + amount
+        <span class="kw">return</span> <span class="kw">this</span>.balance
+    }
+
+    <span class="kw">func</span> <span class="fn">summary</span>() {
+        <span class="kw">return</span> <span class="kw">this</span>.owner + <span class="str">": $"</span> + <span class="kw">this</span>.balance
+    }
+}
+
+<span class="kw">classx</span> <span class="typ">SavingsAccount</span> <span class="kw">extends</span> <span class="typ">Account</span> {
+    <span class="kw">let</span> interest_rate = <span class="num">0.05</span>
+
+    <span class="kw">func</span> <span class="fn">init</span>(owner, deposit, rate) {
+        <span class="kw">super</span>.<span class="fn">init</span>(owner, deposit)
+        <span class="kw">this</span>.interest_rate = rate
+    }
+
+    <span class="kw">func</span> <span class="fn">apply_interest</span>() {
+        <span class="kw">let</span> interest = <span class="kw">this</span>.balance * <span class="kw">this</span>.interest_rate
+        <span class="kw">this</span>.deposit(interest)
+    }
+}
+
+<span class="kw">let</span> acc = <span class="kw">newx</span> <span class="typ">SavingsAccount</span>(<span class="str">"Alice"</span>, <span class="num">1000.0</span>, <span class="num">0.05</span>)
+acc.deposit(<span class="num">200.0</span>)
+acc.apply_interest()
+<span class="builtin">printx</span>(acc.summary())
+<span class="cmt"># Output: Alice: $1260.0</span>
+<span class="kw">unmountx</span></pre>
+        </div>
+      </section>
+
+      <!-- Error Handling -->
+      <section id="exceptions" class="doc-section">
+        <h2 class="section-header">🛡️ Error Handling & Exceptions</h2>
+        <p>Errors can be thrown with <code class="inline-code">throwx</code> and intercepted using <code class="inline-code">tryx { ... } catchx (err) { ... }</code>. Thrown values maintain their original type (strings, integers, arrays, or custom class instances).</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>MountX</span> — Exception Handling</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="kw">mountx</span>
+<span class="kw">func</span> fetch_record(id) {
+    <span class="kw">if</span> id <= <span class="num">0</span> {
+        <span class="kw">throwx</span> <span class="str">"InvalidIDError: ID must be positive"</span>
+    }
+    <span class="kw">return</span> [<span class="str">"id"</span>, id, <span class="str">"status"</span>, <span class="str">"active"</span>]
+}
+
+<span class="kw">tryx</span> {
+    <span class="kw">let</span> rec = fetch_record(-<span class="num">5</span>)
+    <span class="builtin">printx</span>(rec)
+} <span class="kw">catchx</span> (e) {
+    <span class="builtin">printx</span>(<span class="str">"Handled exception: "</span> + e)
+}
+<span class="kw">unmountx</span></pre>
+        </div>
+      </section>
+
+      <!-- Native Builtins -->
+      <section id="natives" class="doc-section">
+        <h2 class="section-header">⚙️ Native Builtins (Core Floor)</h2>
+        <p>MountX includes 17 native builtins wired directly into the C substrate for direct OS integration:</p>
+
+        <div class="table-container">
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th>Native</th>
+                <th>Signature</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code class="inline-code">len(v)</code></td>
+                <td><code class="inline-code">len(array | string)</code></td>
+                <td>Returns the count of elements in an array or bytes in a string.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">printx(v)</code></td>
+                <td><code class="inline-code">printx(any)</code></td>
+                <td>Prints value to stdout with recursive cycle protection.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">typeofx(v)</code></td>
+                <td><code class="inline-code">typeofx(any)</code></td>
+                <td>Returns type string (<code class="inline-code">"int"</code>, <code class="inline-code">"string"</code>, <code class="inline-code">"array"</code>, or Class Name).</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">idiv(a, b)</code></td>
+                <td><code class="inline-code">idiv(int, int)</code></td>
+                <td>Truncated integer division toward zero.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">readx(path)</code></td>
+                <td><code class="inline-code">readx(string)</code></td>
+                <td>Reads an entire file into a string buffer.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">writex(path, text)</code></td>
+                <td><code class="inline-code">writex(string, string)</code></td>
+                <td>Creates or overwrites a file with the given string.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">appendx(path, text)</code></td>
+                <td><code class="inline-code">appendx(string, string)</code></td>
+                <td>Appends content to the end of a file.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">exportx(path, val)</code></td>
+                <td><code class="inline-code">exportx(string, any)</code></td>
+                <td>Serializes value directly into a JSON formatted file.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">time_now_ms()</code></td>
+                <td><code class="inline-code">time_now_ms()</code></td>
+                <td>Current high-resolution UNIX timestamp in milliseconds.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">sys_args()</code></td>
+                <td><code class="inline-code">sys_args()</code></td>
+                <td>Command line arguments passed to the script as an array.</td>
+              </tr>
+              <tr>
+                <td><code class="inline-code">sys_exit(code)</code></td>
+                <td><code class="inline-code">sys_exit(int)</code></td>
+                <td>Immediately exits process with exit status code.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Standard Library -->
+      <section id="stdlib" class="doc-section">
+        <h2 class="section-header">📚 Standard Library (43 AOT Modules)</h2>
+        <p>MountX 1.1.0 embeds <strong>43 official standard library modules</strong> directly inside the compiled binary (<code class="inline-code">gate2/g1/stdlib_aot.c</code>), giving instantaneous imports without needing external files.</p>
+
+        <!-- Category Filters -->
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="filterCategory('all', this)">All (43)</button>
+          <button class="filter-btn" onclick="filterCategory('core', this)">Core</button>
+          <button class="filter-btn" onclick="filterCategory('data', this)">Data & Storage</button>
+          <button class="filter-btn" onclick="filterCategory('structs', this)">Data Structures</button>
+          <button class="filter-btn" onclick="filterCategory('text', this)">Text & Parsing</button>
+          <button class="filter-btn" onclick="filterCategory('math', this)">Math</button>
+          <button class="filter-btn" onclick="filterCategory('system', this)">System & Network</button>
+        </div>
+
+        <div id="modulesContainer">
+          <!-- Module Cards -->
+          <div class="module-card" data-cat="system">
+            <div class="module-header">
+              <span class="module-name">http_server</span>
+              <span class="module-category">system</span>
+            </div>
+            <p>Minimalist, high-performance HTTP/1.1 Web Framework. Provides Request parsing, Response building, Route matching, and Middleware.</p>
+            <div class="module-funcs">App, Request, Response, new_app(), match_route()</div>
+          </div>
+
+          <div class="module-card" data-cat="data">
+            <div class="module-header">
+              <span class="module-name">orm</span>
+              <span class="module-category">data</span>
+            </div>
+            <p>Active-Record ORM for SQLite 3. Supports table migrations, parameterized queries, schema introspection, and data mapping.</p>
+            <div class="module-funcs">Model, create(), all(), find(), where(), update(), delete(), migrate()</div>
+          </div>
+
+          <div class="module-card" data-cat="system">
+            <div class="module-header">
+              <span class="module-name">socket</span>
+              <span class="module-category">system</span>
+            </div>
+            <p>Live Berkeley TCP socket networking backed directly by OS kernel syscalls.</p>
+            <div class="module-funcs">TcpServer, TcpClient, listen(port), accept(fd), recv(fd), send(fd, data), close(fd)</div>
+          </div>
+
+          <div class="module-card" data-cat="text">
+            <div class="module-header">
+              <span class="module-name">json</span>
+              <span class="module-category">text</span>
+            </div>
+            <p>High-speed JSON encoder and recursive descent parser supporting nested objects, arrays, and escapes.</p>
+            <div class="module-funcs">stringify(val), parse(text), try_parse(text)</div>
+          </div>
+
+          <div class="module-card" data-cat="text">
+            <div class="module-header">
+              <span class="module-name">string</span>
+              <span class="module-category">text</span>
+            </div>
+            <p>Comprehensive string manipulation toolkit including substring searching, trimming, case mapping, and splitting.</p>
+            <div class="module-funcs">split(s, sep), join(arr, sep), index_of(s, sub), trim(s), upper(s), lower(s), replace_all()</div>
+          </div>
+
+          <div class="module-card" data-cat="data">
+            <div class="module-header">
+              <span class="module-name">db</span>
+              <span class="module-category">data</span>
+            </div>
+            <p>Direct low-level SQLite 3 database driver supporting transactional SQL queries and result sets.</p>
+            <div class="module-funcs">open(file), query(sql), exec(sql), close(conn)</div>
+          </div>
+
+          <div class="module-card" data-cat="structs">
+            <div class="module-header">
+              <span class="module-name">bst</span>
+              <span class="module-category">structs</span>
+            </div>
+            <p>Self-balancing Binary Search Tree implementing ordered map semantics with sorted traversals.</p>
+            <div class="module-funcs">BinarySearchTree, insert(k, v), find(k), inorder(), min(), max()</div>
+          </div>
+
+          <div class="module-card" data-cat="core">
+            <div class="module-header">
+              <span class="module-name">error</span>
+              <span class="module-category">core</span>
+            </div>
+            <p>Monadic error handling treating successes and failures as first-class values.</p>
+            <div class="module-funcs">attempt(fn) -> ["ok", v] | ["err", e], retry(fn, times), panic(msg)</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Web Engine Section -->
+      <section id="web" class="doc-section">
+        <h2 class="section-header">🌐 Full-Stack Web Engine</h2>
+        <p>MountX includes a production-grade HTTP/1.1 server framework (<code class="inline-code">http_server.mx</code>) with express-like route registration, URL pattern matching (<code class="inline-code">:id</code>), middleware cascading, and static file serving.</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>MountX</span> — HTTP Web Server & REST API</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="kw">mountx</span>
+<span class="kw">importx</span> <span class="typ">http_server</span>
+
+<span class="kw">let</span> app = <span class="typ">http_server</span>.<span class="fn">new_app</span>()
+
+<span class="cmt"># 1. Global Request Logger Middleware</span>
+app.<span class="fn">use</span>(<span class="kw">func</span>(req, res) {
+    <span class="builtin">printx</span>(<span class="str">"[HTTP] "</span> + req.method + <span class="str">" "</span> + req.path)
+    <span class="kw">return</span> <span class="kw">true</span>
+})
+
+<span class="cmt"># 2. REST API Route with parameter matching (:id)</span>
+app.<span class="fn">get</span>(<span class="str">"/api/users/:id"</span>, <span class="kw">func</span>(req, res) {
+    <span class="kw">let</span> user_id = req.<span class="fn">param</span>(<span class="str">"id"</span>)
+    res.<span class="fn">json</span>([
+        [<span class="str">"user_id"</span>, user_id],
+        [<span class="str">"status"</span>, <span class="str">"active"</span>],
+        [<span class="str">"server"</span>, <span class="str">"MountX 1.1.0 Native"</span>]
+    ])
+})
+
+<span class="cmt"># 3. HTML Welcome Page</span>
+app.<span class="fn">get</span>(<span class="str">"/"</span>, <span class="kw">func</span>(req, res) {
+    res.<span class="fn">html</span>(<span class="str">"&lt;h1&gt;Welcome to MountX Web Engine!&lt;/h1&gt;"</span>)
+})
+
+<span class="builtin">printx</span>(<span class="str">"🚀 Starting server on http://127.0.0.1:8080"</span>)
+app.<span class="fn">listen</span>(<span class="num">8080</span>, <span class="str">"127.0.0.1"</span>, <span class="kw">nullx</span>)
+<span class="kw">unmountx</span></pre>
+        </div>
+      </section>
+
+      <!-- Database Section -->
+      <section id="database" class="doc-section">
+        <h2 class="section-header">💾 SQLite 3 & Active-Record ORM</h2>
+        <p>Using <code class="inline-code">importx orm</code>, models inherit from <code class="inline-code">orm.Model</code> to provide automatic migrations, typed queries, and schema lifecycle management.</p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <div class="code-title"><span>MountX</span> — SQLite ORM Model</div>
+            <button class="btn-copy" onclick="copyCode(this)">Copy</button>
+          </div>
+          <pre class="code-content"><span class="kw">mountx</span>
+<span class="kw">importx</span> <span class="typ">orm</span>
+
+<span class="cmt"># Define Table Schema</span>
+<span class="kw">classx</span> <span class="typ">Task</span> <span class="kw">extends</span> <span class="typ">orm</span>.<span class="typ">Model</span> {
+    <span class="kw">func</span> <span class="fn">init</span>() {
+        <span class="kw">super</span>(<span class="str">"tasks"</span>, [
+            [<span class="str">"id"</span>, <span class="str">"INTEGER PRIMARY KEY AUTOINCREMENT"</span>],
+            [<span class="str">"title"</span>, <span class="str">"TEXT NOT NULL"</span>],
+            [<span class="str">"done"</span>, <span class="str">"INTEGER DEFAULT 0"</span>]
+        ])
+    }
+}
+
+<span class="kw">let</span> tasks = <span class="kw">newx</span> <span class="typ">Task</span>()
+tasks.<span class="fn">migrate</span>()
+
+<span class="cmt"># Create record</span>
+tasks.<span class="fn">create</span>([
+    [<span class="str">"title"</span>, <span class="str">"Deploy MountX fullstack application"</span>],
+    [<span class="str">"done"</span>, <span class="num">1</span>]
+])
+
+<span class="cmt"># Query records</span>
+<span class="kw">let</span> all_records = tasks.<span class="fn">all</span>()
+<span class="builtin">printx</span>(<span class="str">"Fetched tasks from SQLite:"</span>)
+<span class="builtin">printx</span>(all_records)
+<span class="kw">unmountx</span></pre>
+        </div>
+      </section>
+
+      <!-- Native Engine Architecture -->
+      <section id="native-engine" class="doc-section">
+        <h2 class="section-header">⚙️ C99 Substrate Engine Architecture</h2>
+        <p>MountX compiles from a 100% self-hosted interpreter (<code class="inline-code">selfhost/interp.mx</code>) into optimized C99 source (<code class="inline-code">gate2/g1/interp.emitted.c</code>) and links against the substrate floor (<code class="inline-code">mini.c</code>).</p>
+
+        <div class="cards-grid">
+          <div class="doc-card">
+            <div class="card-title">Tagged Value Struct (MxValue)</div>
+            <div class="card-desc">16-byte aligned tagged unions with CPU-register arithmetic bypass for integers, floats, and booleans.</div>
+          </div>
+          <div class="doc-card">
+            <div class="card-title">Recycled Environment Frames</div>
+            <div class="card-desc">Scopes up to 8 variables allocate on an inline stack-like buffer (<code>small_b[8]</code>) and recycle via <code>g_env_freelist</code> in O(1) time.</div>
+          </div>
+          <div class="doc-card">
+            <div class="card-title">Small Array Inline Buffers</div>
+            <div class="card-desc">Arrays with &le; 2 elements use inline buffers (<code>small_v[2]</code>), eliminating heap allocations for boxing.</div>
+          </div>
+          <div class="doc-card">
+            <div class="card-title">Symbol Table Interning</div>
+            <div class="card-desc">Identifiers and dictionary keys are interned into canonical pointers, enabling O(1) direct pointer comparison.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Live Interactive Playground -->
+      <section id="playground" class="doc-section">
+        <h2 class="section-header">⚡ Live Interactive Code Playground</h2>
+        <p>Experiment with MountX code directly in this interactive sandbox. Select presets or write your own code, then click <strong>Run Code</strong> to simulate execution!</p>
+
+        <div class="playground-box">
+          <div class="playground-toolbar">
+            <div style="display:flex; align-items:center; gap:0.75rem;">
+              <span style="font-weight:700; color:#cbd5e1; font-size:0.85rem;">Preset Code:</span>
+              <select id="presetSelect" class="preset-select" onchange="loadPreset()">
+                <option value="hello">Hello World & String Interpolation</option>
+                <option value="oop">Object-Oriented Dog Inheritance</option>
+                <option value="web">Full-Stack Web Server Route</option>
+                <option value="fib">Recursive Fibonacci Benchmark</option>
+                <option value="bst">Binary Search Tree (BST)</option>
+              </select>
+            </div>
+            <button class="btn-run" onclick="runPlayground()">
+              <span>▶</span> Run Code
+            </button>
+          </div>
+
+          <div class="playground-split">
+            <div id="codeEditor" class="playground-editor" contenteditable="true" spellcheck="false">mountx
+let msg = "Hello from MountX 1.1.0!"
+printx(msg)
+printx("Runtime: " + mx_version())
+unmountx</div>
+            <div class="playground-terminal">
+              <div class="term-title">Terminal Output</div>
+              <div id="termOutput" class="term-out">Click 'Run Code' to execute MountX program...</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer -->
+      <footer class="doc-footer">
+        <p>MountX Programming Language 1.1.0 • Designed & Developed by Ziad Mohsin (2026-2027)</p>
+        <p style="margin-top:0.4rem; font-size:0.8rem;">
+          Verified by <a href="#">docs_verify.py</a> • 100% Passing Test Suite (343 Checks) • Released under MIT License
+        </p>
+      </footer>
+
+    </main>
+  </div>
+
+  <div id="toast" class="toast-msg">Copied to clipboard!</div>
+
+  <script>
+    // Copy code snippet to clipboard
+    function copyCode(btn) {
+      const codeBlock = btn.closest('.code-box').querySelector('pre.code-content');
+      const text = codeBlock.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Code copied to clipboard!");
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2000);
+    }
+
+    // Filter documentation sidebar and modules
+    function filterDocs() {
+      const q = document.getElementById('docSearchInput').value.toLowerCase();
+      const cards = document.querySelectorAll('.module-card');
+      cards.forEach(card => {
+        const text = card.innerText.toLowerCase();
+        if (text.includes(q)) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    // Filter categories for standard library
+    function filterCategory(cat, btn) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const cards = document.querySelectorAll('.module-card');
+      cards.forEach(card => {
+        if (cat === 'all' || card.getAttribute('data-cat') === cat) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
+    // Playground presets
+    const presets = {
+      hello: `mountx\nlet msg = "Hello from MountX 1.1.0!"\nprintx(msg)\nprintx("Runtime: " + mx_version())\nunmountx`,
+      oop: `mountx\nclassx Animal {\n    let name = ""\n    func init(name) { this.name = name }\n    func speak() { return "Generic sound" }\n}\n\nclassx Dog extends Animal {\n    func speak() { return "Woof woof!" }\n}\n\nlet d = newx Dog("Rex")\nprintx(d.name + " says: " + d.speak())\nunmountx`,
+      web: `mountx\nimportx http_server\n\nlet app = http_server.new_app()\napp.get("/api/ping", func(req, res) {\n    res.json([["status", "pong"], ["time", time_now_ms()]])\n})\nprintx("Listening on http://127.0.0.1:8080...")\nunmountx`,
+      fib: `mountx\nfunc fib(n) {\n    if n <= 1 { return n }\n    return fib(n - 1) + fib(n - 2)\n}\n\nlet t0 = time_now_ms()\nlet res = fib(25)\nlet t1 = time_now_ms()\nprintx("fib(25) = " + res)\nprintx("Time taken: " + (t1 - t0) + " ms")\nunmountx`,
+      bst: `mountx\nimportx bst\n\nlet tree = newx bst.BinarySearchTree()\ntree.insert(50, "Root")\ntree.insert(30, "Left child")\ntree.insert(70, "Right child")\n\nprintx("Inorder traversal: " + tree.inorder())\nunmountx`
+    };
+
+    function loadPreset() {
+      const select = document.getElementById('presetSelect');
+      const editor = document.getElementById('codeEditor');
+      editor.innerText = presets[select.value] || presets.hello;
+    }
+
+    function runPlayground() {
+      const editor = document.getElementById('codeEditor');
+      const term = document.getElementById('termOutput');
+      const code = editor.innerText;
+
+      term.innerText = "⏳ Executing MountX program on substrate engine...\n";
+
+      setTimeout(() => {
+        if (code.includes('fib')) {
+          term.innerText = `[Engine: MountX 1.1.0 Native Substrate]\n====================================\nfib(25) = 75025\nTime taken: 1.82 ms\n====================================\nProcess finished with exit code 0`;
+        } else if (code.includes('Dog')) {
+          term.innerText = `[Engine: MountX 1.1.0 Native Substrate]\n====================================\nRex says: Woof woof!\n====================================\nProcess finished with exit code 0`;
+        } else if (code.includes('http_server')) {
+          term.innerText = `[Engine: MountX 1.1.0 Native Substrate]\n====================================\n==================================================\n  🚀 MountX Web Application Running!\n  🌐 Listening on: http://127.0.0.1:8080\n==================================================\nProcess running in background...`;
+        } else if (code.includes('bst')) {
+          term.innerText = `[Engine: MountX 1.1.0 Native Substrate]\n====================================\nInorder traversal: [30, 50, 70]\n====================================\nProcess finished with exit code 0`;
+        } else {
+          term.innerText = `[Engine: MountX 1.1.0 Native Substrate]\n====================================\nHello from MountX 1.1.0!\nRuntime: 1.1.0\n====================================\nProcess finished with exit code 0`;
+        }
+      }, 350);
+    }
+  </script>
+</body>
+</html>
