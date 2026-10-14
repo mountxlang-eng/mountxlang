@@ -1,5 +1,5 @@
 <!-- Copyright (C) 2026-2027 Ziad Mohsin. All Rights Reserved. -->
-# 🏔️ MountX Programming Language
+#  MountX Programming Language
 
 > **A modern, expressive, high-performance programming language featuring a native C AOT-compiled substrate, built-in full-stack web and SQLite ORM engines, the official `mxpm` package manager, and client-side WebAssembly execution.**
 
