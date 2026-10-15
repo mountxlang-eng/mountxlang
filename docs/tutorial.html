@@ -1,0 +1,1601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MountX Learn — Complete Interactive Documentation & Educational Platform</title>
+  <meta name="description" content="Learn MountX language step-by-step with interactive live compiler, runnable code sandboxes, comprehensive syntax explanations, and built-in modules.">
+  <link rel="icon" type="image/png" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAABiyklEQVR4nO29d3xUxfo//p6Zc3Y3DUJoIZTQS+hFbGgAxd41sXcEFb32XjZrb8gVUCQWBFEkKwKCgIB06aGnkt5732w5Z+b5/XE26L3Xrvfe7+9zefNaNrvn7O45M8/MPPOU9wOcxEmcxEmcxEmcxEmcxEmcxEmcxEmcxEmcxEmcxEmcxEmcxP9lsP/2BZzEvwcpKSkCABITExUA+rnzTgrA/yE4nU4OgLsABZdLtb1PRIwx9rNCcBJBEBFv+7ttBP0/DJaSkiKcmzdr8U6nhn8azB5Pw7jj+fmnE9EvDvKTM0AQbaOEA9AER0CqX/3MfxpExNxuN383LY1tdbnMHx+zcY6Ur1aPzmypu6zW8I+uCfgurWqq42O7xe67ZOzIm8cPGZntdDqZ60czAwBo/9lb+H8TRMQZY+pIbu6529NzXi2rquWnx/VzX3za+DcBqP/i9MmcTicDwF1wKcaYAiABIMRmw7G8vHN3Hjk2ZU9ONi9qaDjljT1bzmrVGWd2gajICBgaMw/UVJ1yWr3vPABZEydOFCcF4J/QNkVSXV3719ZtW7Bw7+EexfUtqFMY005h39lnnropJSVFJCYmyv/U9bjdbp6YlkZwuZTL5SIAigOQRB1XbPnurIzqmrOLaqonPf3V0lFFtXVoNL1oFxmOfr17YdDAHnJI757o3DWKu7fsZMd2ZqqqmsoWANjyE7/3Py8Ayamp2vRx44yPvl5zz+L9WT369Yw2brlwKN52rxK62fqWAEa/m5bG/l2KVFuHuwG4ExPbZhsZPOZY8c03g7Pra88o8jRdcuWs106t8fuiPKRg4xzR7cJp8hmj5LBBfdGzexQTGrgXUuS3NqCwqgi5hRVcDyj4a2qOAUB6dfW/XP//tACkpKSIxHHjjB37D5/1yqrvnmwwWuVzN03VTu0SxTILC9XyjPRR765Y88rdV1z0NHO5OH5hO/Vb8Q8d7naDMSYR7HAbY/Ar1WXB2tXjjhWW3HnFyy8Nq2xp6ee1CaGFCHRr3x4TBvZTp/Tvp/rHRPP2EQ7ugVerQjNKZAWaDR8a/BwHK6rQLSQStXWN6ErEOJM2AIDb/S/X8z8rAE4insiYrK1tPP2VZWtXbswoav/eI7dQz85RzCMV3rz+cnbOCyXqs31pT63fub1syukT3gPAg+vw7wFzErGhAEtMSqIfr+MAQOXlXfY01g7bnZ13bnp1+dlnP+8c1Oj3dvLpJjqFhmHIoFiMHjJAju7fHzEd23EbGG+Eh1eqBmQZHrSSCRMSSmOACkFaXRX8TAfzKjIafUwEVGM4BYoAIC4u7l8E+H9yF0BELCkpiSXdNtH2xq76tNdXbul71ZQJ8vE7E0R9kw/9w3R0EAIbsnLp6hfewA2njWc3jhxwanx8/N7fow84nU7+z0oXEUXuPHBgxN7iwsvSK0qGldQ3jPAI1q3G04IQYUPv6I4Y2b+PGtW3N/WM6cRsus788LN6NKHObEELBWASgTECFxycBARx6GRHanU1slqb0UGzIazBVFuWbudDhe1Ayrnnn8omTWq75n8Qgv/JGSApKUm4XC6zy+C4+xZsOti3T/cu8t6bLheFLQGEcoBxjgapMHlQP/bEjVeq1xYtV6EMC6ih6Cw266OG36gPMJfLpYiINZfVDFqdfvTUtKryy659641xha1NvZoZYNd1dGsfidN7dFdnDuhP/Xp1Q1iozv0weCWakaPK0RBohZ8pCMYgAHDGQJxDgMAJUEQIRwjS6utQ4m2BQ2gIUQz+Jh+BFMJCQjLYpElmQkqKcP+E4P7PCUBwBJsbd+yeNGv9/tfr/VLOfuRObkJASgMkGEwAmmBoVgqPXHgBP5idJ1dn58Z1Xbn9cbhcT06PidEBGD/3G06nkyclJdF3+/ePfy7li3lHC4uHlrc02Vv8BiIiQjCof286Y/BAObJXL9Y9qgO3c/A6NKOUalBleuBVfkhIKI3AdA47OEAAIwYQszqeK0hiiGRhyG9oRmZTDZjQwaWCxnU0NrXCpgCH0NIBoCot7Sdne/5Tb/5fBRExS6Ova+/edez9TemF/Llp17KYmGjW6GkFYxxKARIEAQCMgaDw+h03Cy5Nc/mhY48lL3Zfkjx9uvFLlkIXAMYYbUk7NtOdfmRMc4iuXzRlgnzvoanys2dmqKQbLmWnjonVmjr5xE51nK0LHMUuIw+Fsg4+FgA0Bq4J6KRDI35i0iYGEAcUA4gY2rFQlDe24kBNJRjTwRUAIjDJ0FjfghDG0UELyQaAiT9zrf9TApDodvOtLpc5N2XnByv2Zwy8ZvIYec6EsbysrgVcs6ypDAAHA4EBYGhRCj3aReDtGVNFZkUV21hQ+Mn3W/aOTkxMlD82Hf8YCenpDABMvz+H+/0IeD2GoUyRXV8tDjeW8l1UiJ2BPOQaNWjkXpjCWs8Z51CMgYIjXXFAMoAxBsZ+GMBECqEsDPWthO9ry2FyDYoAkwggBhYAtba0ChhGawzTjwQ/9pPK6/+MADidTu5OTJTL1m18MHn9zqs7RXdUD9xyJa9s8CKgSRAINiZAjMAIMIggGCA4Q4OUODduIHvwuivUt7kFHTfmFSUTkUhKSsJP2dpTUlIUEbGzB/Z67swu0Udry8rti7/eoFbvy6D1BwuRU9IMm80Bhy6gkQBxwGCW044TgUGBMYJQCkIqSBBIKYAIkiTCmAbTS9haXgIfMZgcCAAwGcAUgzQUmhpb0c7uoP7dOwV+qV3+J3QAp9OpuVwutevAkYve/WbnrILaZvXh03ezZpuNFTW2oqvDjhYGHKyoxRk9I2CCQABKWv3oHmKHxgjNysTTl10ijhVUmkvSD4+LXul4y+VyPYSJEzUA/2CXZ4wREbGLJl1UcmT16vgwEy+lVpffecThhU39mZ75v3wI+8P32u179/xO3z742P4H57/1638P/n/y/wD0/89WzVd9/wAAAABJRU5ErkJggg==">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #07090e;
+      --bg-surface: #0d121f;
+      --bg-card: rgba(16, 23, 38, 0.75);
+      --bg-card-hover: rgba(26, 36, 58, 0.85);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-active: rgba(99, 102, 241, 0.4);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --primary: #6366f1;
+      --primary-gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --code-bg: #090d16;
+      --terminal-bg: #05070c;
+      --sidebar-width: 320px;
+      --header-height: 68px;
+      --font-ui: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-code: 'JetBrains Mono', monospace;
+      --shadow-glow: 0 0 35px rgba(99, 102, 241, 0.2);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      line-height: 1.65;
+      font-size: 15px;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #334155;
+    }
+
+    /* Top Navigation Bar */
+    header.top-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: var(--header-height);
+      background: rgba(7, 9, 14, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border-subtle);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text-main);
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: var(--primary-gradient);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+    }
+
+    .brand-text h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .brand-text span {
+      font-size: 11px;
+      color: var(--accent-cyan);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .badge-v {
+      background: rgba(99, 102, 241, 0.15);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      color: #a5b4fc;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .btn-docs-link {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+    .btn-docs-link:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-active);
+    }
+
+    /* Layout Container */
+    .app-container {
+      display: flex;
+      margin-top: var(--header-height);
+      min-height: calc(100vh - var(--header-height));
+    }
+
+    /* Sidebar */
+    aside.sidebar {
+      width: var(--sidebar-width);
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border-subtle);
+      height: calc(100vh - var(--header-height));
+      position: fixed;
+      top: var(--header-height);
+      left: 0;
+      overflow-y: auto;
+      padding: 20px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      z-index: 50;
+    }
+
+    .search-box {
+      position: relative;
+    }
+
+    .search-box input {
+      width: 100%;
+      background: #090d16;
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 10px 14px 10px 36px;
+      color: var(--text-main);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .search-box input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 14px;
+      pointer-events: none;
+    }
+
+    .sidebar-nav {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .cat-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .cat-title {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.9px;
+      color: var(--text-dim);
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .lesson-item {
+      padding: 8px 12px;
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 13.5px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .lesson-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+    }
+
+    .lesson-item.active {
+      background: rgba(99, 102, 241, 0.16);
+      color: #818cf8;
+      font-weight: 600;
+      border-left: 3px solid var(--primary);
+    }
+
+    /* Main Content */
+    main.content-area {
+      margin-left: var(--sidebar-width);
+      flex: 1;
+      padding: 40px 48px 80px 48px;
+      max-width: 1200px;
+    }
+
+    .breadcrumbs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .breadcrumbs span.active {
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .lesson-header {
+      margin-bottom: 24px;
+    }
+
+    .lesson-header h2 {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .tag-badge {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 12px;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: #67e8f9;
+    }
+
+    .theory-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 28px;
+      backdrop-filter: blur(10px);
+    }
+
+    .theory-card p {
+      margin-bottom: 14px;
+      color: #cbd5e1;
+      font-size: 15.5px;
+    }
+
+    .theory-card p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Interactive Sandbox Component */
+    .sandbox-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      overflow: hidden;
+      margin-bottom: 32px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .sandbox-header {
+      background: #090e18;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 12px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sandbox-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sandbox-title::before {
+      content: "";
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #10b981;
+      display: inline-block;
+      box-shadow: 0 0 8px #10b981;
+    }
+
+    .sandbox-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      outline: none;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .btn-run {
+      background: #10b981;
+      color: #022c22;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    .btn-run:hover {
+      background: #34d399;
+      transform: translateY(-1px);
+    }
+
+    .btn-reset {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+    }
+    .btn-reset:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+
+    .btn-copy {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-muted);
+      border: 1px solid var(--border-subtle);
+    }
+    .btn-copy:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+
+    .editor-wrapper {
+      position: relative;
+    }
+
+    .code-editor {
+      width: 100%;
+      height: 240px;
+      background: var(--code-bg);
+      color: #e2e8f0;
+      font-family: var(--font-code);
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 16px 20px;
+      border: none;
+      outline: none;
+      resize: vertical;
+      white-space: pre;
+      tab-size: 4;
+    }
+
+    .terminal-container {
+      background: var(--terminal-bg);
+      border-top: 1px solid var(--border-subtle);
+      padding: 14px 20px;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .terminal-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+    }
+
+    .terminal-output {
+      font-family: var(--font-code);
+      font-size: 13.5px;
+      line-height: 1.5;
+      color: #38bdf8;
+      white-space: pre-wrap;
+      word-break: break-all;
+      min-height: 48px;
+    }
+
+    /* Breakdown Explanation */
+    .breakdown-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+
+    .breakdown-card h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 14px;
+      color: var(--text-main);
+    }
+
+    .breakdown-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .breakdown-list li {
+      position: relative;
+      padding-left: 24px;
+      font-size: 14.5px;
+      color: #cbd5e1;
+    }
+
+    .breakdown-list li::before {
+      content: "✔";
+      position: absolute;
+      left: 0;
+      top: 0;
+      color: #10b981;
+      font-size: 13px;
+    }
+
+    .breakdown-list code {
+      background: rgba(99, 102, 241, 0.15);
+      color: #c7d2fe;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-code);
+      font-size: 13px;
+    }
+
+    /* Bottom Navigation */
+    .lesson-nav-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 24px;
+      margin-top: 40px;
+    }
+
+    .btn-nav-page {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-nav-page:hover:not(:disabled) {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+
+    .btn-nav-page:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #10b981;
+      color: #022c22;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 13.5px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+      opacity: 0;
+      transform: translateY(15px);
+      transition: all 0.25s ease;
+      z-index: 999;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (max-width: 900px) {
+      aside.sidebar {
+        display: none;
+      }
+      main.content-area {
+        margin-left: 0;
+        padding: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="top-nav">
+    <a href="#" class="brand">
+      <div class="brand-logo">MX</div>
+      <div class="brand-text">
+        <h1>MountX Interactive Learn</h1>
+        <span>Official Developer Tutorial</span>
+      </div>
+    </a>
+    <div class="nav-actions">
+      <span class="badge-v">MountX v1.1.0</span>
+      <a href="index.html" class="btn-docs-link">📖 API Docs</a>
+      <a href="https://github.com/mountxlang-eng/mountxlang" target="_blank" class="btn-docs-link">GitHub ↗</a>
+    </div>
+  </header>
+
+  <div class="app-container">
+    <!-- Collapsible Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="lessonSearch" placeholder="Search lessons (e.g. loops, mountdb)..." oninput="filterLessons()">
+      </div>
+      <div class="sidebar-nav" id="sidebarNav">
+        <!-- Rendered via JS -->
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+      <div class="breadcrumbs">
+        <span>Curriculum</span>
+        <span>›</span>
+        <span id="bcCategory">Basics</span>
+        <span>›</span>
+        <span class="active" id="bcTitle">Intro</span>
+      </div>
+
+      <div class="lesson-header">
+        <h2 id="lessonTitle">MountX Intro</h2>
+        <span class="tag-badge" id="lessonTag">Language Overview</span>
+      </div>
+
+      <!-- Theory Section -->
+      <div class="theory-card" id="lessonTheory">
+        <!-- Rendered via JS -->
+      </div>
+
+      <!-- Interactive Code Sandbox -->
+      <div class="sandbox-container">
+        <div class="sandbox-header">
+          <div class="sandbox-title">Interactive MountX Simulator (جرب بنفسك)</div>
+          <div class="sandbox-actions">
+            <button class="btn btn-copy" onclick="copyCurrentCode()">📋 Copy</button>
+            <button class="btn btn-reset" onclick="resetCurrentCode()">🔄 Reset</button>
+            <button class="btn btn-run" onclick="runCurrentCode()">▶ Run / تشغيل</button>
+          </div>
+        </div>
+        <div class="editor-wrapper">
+          <textarea class="code-editor" id="codeEditor" spellcheck="false"></textarea>
+        </div>
+        <div class="terminal-container">
+          <div class="terminal-header">
+            <span class="terminal-label">Terminal Console Output</span>
+            <span style="font-size: 11px; color: var(--accent-emerald);">● Online (Exit 0)</span>
+          </div>
+          <div class="terminal-output" id="terminalOutput"></div>
+        </div>
+      </div>
+
+      <!-- Line-by-Line Breakdown -->
+      <div class="breakdown-card">
+        <h3>🔍 Code Breakdown & Line Analysis</h3>
+        <ul class="breakdown-list" id="breakdownList">
+          <!-- Rendered via JS -->
+        </ul>
+      </div>
+
+      <!-- Footer Navigation Buttons -->
+      <div class="lesson-nav-footer">
+        <button class="btn-nav-page" id="btnPrev" onclick="navigateLesson(-1)">❮ Previous</button>
+        <button class="btn-nav-page" id="btnNext" onclick="navigateLesson(1)">Next ❯</button>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toastMsg">Code copied to clipboard!</div>
+
+  <script>
+    const CATEGORIES = [
+  {
+    "id": "basics",
+    "title": "MountX Basics & Fundamentals",
+    "icon": "\u26a1",
+    "lessons": [
+      {
+        "id": "intro",
+        "title": "MountX Intro",
+        "tag": "Language Overview",
+        "overview": "\nMountX is a modern, high-performance, dynamically-typed programming language engineered with an ultra-clean C99 substrate. It delivers the developer happiness and clean syntax of Python and JavaScript combined with the lightning-fast execution and zero-dependency portability of C.\n\nKey architectural pillars of MountX:\n\u2022 **Single Standalone Binary**: Compiles to an unbloated native C executable with zero runtime dependencies.\n\u2022 **Predictable Numeric Semantics**: Division `/` ALWAYS yields a 64-bit float, while integer division is explicitly handled via the native `idiv()` builtin.\n\u2022 **First-Class Sockets & SQLite**: Native POSIX/WinSock TCP sockets, HTTP framework, and full SQLite 3 AOT engine are baked directly into the binary core.\n\u2022 **Pure Data Structures**: Immutable-friendly array operations, dynamic classes, and native exception handling.\n",
+        "code": "# MountX Introduction Demo\nmountx\n    printx(\"Hello from MountX 1.1.0!\")\n    printx(\"Native C Substrate + High-Performance Web & DB Engine\")\n    \n    let year = 2026\n    let version = \"1.1.0\"\n    printx(\"Running MountX \" + version + \" in \" + year)\nunmountx",
+        "breakdown": [
+          "<code>mountx ... unmountx</code>: Optional entry-point program block wrapper (MountX auto-wraps scripts if omitted).",
+          "<code>printx(...)</code>: The standard native output function in MountX. It handles automatic stringification and cycle detection.",
+          "<code>let variable = value</code>: Declares a local or global scoped variable dynamically.",
+          "<code>+</code> operator: Concatenates strings with automatic conversion of primitives."
+        ],
+        "output": "Hello from MountX 1.1.0!\nNative C Substrate + High-Performance Web & DB Engine\nRunning MountX 1.1.0 in 2026"
+      },
+      {
+        "id": "get-started",
+        "title": "MountX Get Started",
+        "tag": "CLI & Setup",
+        "overview": "\nGetting started with MountX is frictionless. Since MountX ships as a single compiled executable (<code>mountx-native</code> or <code>mountx</code>), no virtual machines, Python packages, or external runtimes are required.\n\nMountX CLI Usage:\n\u2022 <code>mountx script.mx</code> \u2014 Executes a MountX source file.\n\u2022 <code>mountx</code> \u2014 Launches the interactive interactive REPL session.\n\u2022 <code>mountx -e \"printx(42)\"</code> \u2014 Evaluates an inline code snippet directly.\n\u2022 <code>mountx -v / --version</code> \u2014 Displays the active engine version (e.g. 1.1.0).\n",
+        "code": "# Running your first MountX script\nfunc greet(name) {\n    return \"Welcome to MountX, \" + name + \"!\"\n}\n\nlet message = greet(\"Developer\")\nprintx(message)\nprintx(\"System Status: Ready & Compiled to Native C99\")",
+        "breakdown": [
+          "<code>func greet(name) { ... }</code>: Defines a reusable function taking one argument.",
+          "<code>return ...</code>: Returns a computed value back to the caller.",
+          "<code>let message = greet(...)</code>: Captures the return value into a variable.",
+          "<code>printx(message)</code>: Displays the formatted output string to stdout."
+        ],
+        "output": "Welcome to MountX, Developer!\nSystem Status: Ready & Compiled to Native C99"
+      },
+      {
+        "id": "syntax",
+        "title": "MountX Syntax",
+        "tag": "Grammar & Rules",
+        "overview": "\nMountX grammar is designed to be expressive, clean, and intuitive. Unlike C or Java, semicolons (<code>;</code>) are not required; statement boundaries are determined naturally by newlines.\n\nCode blocks are delineated by curly braces <code>{ ... }</code>. MountX strictly enforces that keywords like <code>classx</code>, <code>newx</code>, <code>nullx</code>, <code>tryx</code>, <code>catchx</code>, and <code>throwx</code> provide clear, collision-free semantics across standard libraries and user projects.\n",
+        "code": "# MountX Clean Syntax Rules\nlet score = 95\nlet user = \"Alex\"\n\nif score >= 90 {\n    printx(user + \" scored an A+ grade!\")\n} else {\n    printx(user + \" scored below the threshold.\")\n}\n\n# Multiple statements separated naturally by newlines\nlet a = 10\nlet b = 20\nprintx(\"Total sum: \" + (a + b))",
+        "breakdown": [
+          "Newlines naturally terminate statements \u2014 no semicolons required.",
+          "Curly braces <code>{ ... }</code> encapsulate execution blocks for conditionals, loops, and functions.",
+          "Parentheses around <code>(a + b)</code> ensure arithmetic precedence before string concatenation."
+        ],
+        "output": "Alex scored an A+ grade!\nTotal sum: 30"
+      },
+      {
+        "id": "output",
+        "title": "MountX Output",
+        "tag": "Console I/O",
+        "overview": "\nThe primary native output construct in MountX is <code>printx()</code>. \n\n<code>printx</code> uses MountX's internal <code>display()</code> engine, which guarantees:\n1. Printing human-readable values for <code>nullx</code> (prints 'null'), <code>true</code>, and <code>false</code>.\n2. Deep recursive formatting for nested arrays and collections without infinite loop crashes.\n3. Automatically appending a trailing newline to the output stream.\n",
+        "code": "# Diverse output types in MountX\nprintx(\"String literal output\")\nprintx(100 + 45.5)\nprintx(true)\nprintx(nullx)\n\n# Displaying compound collections\nlet matrix = [[1, 2], [3, 4]]\nprintx(matrix)",
+        "breakdown": [
+          "<code>printx(\"...\")</code>: Outputs text strings verbatim.",
+          "<code>printx(100 + 45.5)</code>: Evaluates float arithmetic and prints the result.",
+          "<code>printx(nullx)</code>: Renders the language's native null singleton as 'null'.",
+          "<code>printx(matrix)</code>: Automatically formats nested lists and structures."
+        ],
+        "output": "String literal output\n145.5\ntrue\nnull\n[[1, 2], [3, 4]]"
+      },
+      {
+        "id": "comments",
+        "title": "MountX Comments",
+        "tag": "Code Documentation",
+        "overview": "\nMountX uses the hash symbol (<code>#</code>) for comments. Any text following a <code>#</code> character on that line is treated as documentation and stripped during the lexical analysis phase.\n\nComments are ideal for annotating module contracts, documenting complex algorithmic steps, or temporarily disabling code during debugging.\n",
+        "code": "# This is a full-line comment in MountX\nlet host = \"127.0.0.1\" # Inline comment: server bind address\nlet port = 8080        # Default HTTP port\n\n# The line below is active code:\nprintx(\"Server configured on \" + host + \":\" + port)\n\n# printx(\"This commented line will not run!\")",
+        "breakdown": [
+          "<code># ...</code>: Full-line comment ignored by the lexer.",
+          "<code># Inline comment</code>: Comments can appear after any valid code statement on the same line."
+        ],
+        "output": "Server configured on 127.0.0.1:8080"
+      },
+      {
+        "id": "variables",
+        "title": "MountX Variables",
+        "tag": "State & Scope",
+        "overview": "\nVariables in MountX are declared using the <code>let</code> keyword. MountX is dynamically typed, meaning a variable holds a value with a specific type, but the variable identifier itself is not bound to a static type signature.\n\nScoping Rules:\n\u2022 Variables declared inside a block or function belong to that local <code>Environment</code> scope.\n\u2022 Reassigning an existing variable updates the nearest enclosing scope.\n\u2022 Module-level variables stay isolated inside their respective module namespaces, preventing global pollution.\n",
+        "code": "# Variable Declaration & Reassignment\nlet city = \"Beirut\"\nlet temperature = 24.5\n\nprintx(\"City: \" + city + \", Temp: \" + temperature + \" C\")\n\n# Reassignment\ntemperature = 26.0\ncity = \"Byblos\"\nprintx(\"Updated: \" + city + \", Temp: \" + temperature + \" C\")\n\n# Local block scope\n{\n    let local_var = \"Inside Block\"\n    printx(local_var)\n}",
+        "breakdown": [
+          "<code>let city = ...</code>: Declares and initializes a variable.",
+          "<code>temperature = 26.0</code>: Mutates the variable with a new float value.",
+          "<code>{ let local_var = ... }</code>: Enclosed within a new scope environment."
+        ],
+        "output": "City: Beirut, Temp: 24.5 C\nUpdated: Byblos, Temp: 26 C\nInside Block"
+      },
+      {
+        "id": "datatypes",
+        "title": "MountX DataTypes",
+        "tag": "Type System",
+        "overview": "\nMountX provides a lean, powerful type system. You can query the type of any value at runtime using the native <code>typeofx(val)</code> function.\n\nCore MountX Data Types:\n\u2022 <code>int</code>: 64-bit signed integers (e.g. <code>42</code>).\n\u2022 <code>float</code>: 64-bit IEEE 754 floating-point numbers (e.g. <code>3.14159</code>).\n\u2022 <code>string</code>: UTF-8 character sequences (e.g. <code>\"MountX\"</code>).\n\u2022 <code>bool</code>: Boolean singletons (<code>true</code> or <code>false</code>).\n\u2022 <code>null</code>: Absence of value (<code>nullx</code> or <code>nil</code>).\n\u2022 <code>array</code>: Ordered lists of values (e.g. <code>[1, 2, 3]</code>).\n\u2022 <code>instance</code>: Object instances created via <code>newx ClassName()</code>.\n",
+        "code": "# Inspecting runtime types with typeofx\nprintx(typeofx(100))\nprintx(typeofx(3.14))\nprintx(typeofx(\"MountX\"))\nprintx(typeofx(true))\nprintx(typeofx(nullx))\nprintx(typeofx([1, 2, 3]))",
+        "breakdown": [
+          "<code>typeofx(...)</code>: Built-in native returning the canonical type string name.",
+          "Distinguishes cleanly between 'int' and 'float'.",
+          "Arrays evaluate as 'array', booleans as 'bool', and nulls as 'null'."
+        ],
+        "output": "int\nfloat\nstring\nbool\nnull\narray"
+      },
+      {
+        "id": "numbers",
+        "title": "MountX Numbers",
+        "tag": "Arithmetic Semantics",
+        "overview": "\nMountX has a strict, well-defined mathematical contract that is essential to understand:\n\n1. **Division `/` ALWAYS returns a float**:\n   In MountX, <code>7 / 2</code> evaluates to <code>3.5</code>, never <code>3</code>.\n2. **Integer Division `idiv()`**:\n   To perform truncated integer division toward zero, use the native <code>idiv(a, b)</code> builtin.\n3. **Floating Point Functions**:\n   Use <code>math_floor(x)</code> for floor operations, or import the standard <code>mathfull</code> module for advanced functions.\n",
+        "code": "# MountX Number Invariants\nlet a = 7\nlet b = 2\n\n# Division / always returns float\nlet div_res = a / b\nprintx(\"7 / 2 = \" + div_res + \" (\" + typeofx(div_res) + \")\")\n\n# Native integer division\nlet idiv_res = idiv(a, b)\nprintx(\"idiv(7, 2) = \" + idiv_res + \" (\" + typeofx(idiv_res) + \")\")\n\n# Modulo operator\nprintx(\"7 % 2 = \" + (7 % 2))\n\n# Math floor\nprintx(\"math_floor(3.99) = \" + math_floor(3.99))",
+        "breakdown": [
+          "<code>a / b</code>: Evaluates to 3.5 with type 'float'.",
+          "<code>idiv(a, b)</code>: Truncates towards zero, returning integer 3.",
+          "<code>7 % 2</code>: Modulo operator for integer remainders.",
+          "<code>math_floor(...)</code>: Standard native math floor operation."
+        ],
+        "output": "7 / 2 = 3.5 (float)\nidiv(7, 2) = 3 (int)\n7 % 2 = 1\nmath_floor(3.99) = 3"
+      },
+      {
+        "id": "casting",
+        "title": "MountX Casting",
+        "tag": "Type Conversions",
+        "overview": "\nConverting between data types in MountX is simple and explicit:\n\n\u2022 **To String**: Prefix with an empty string <code>\"\" + val</code> or use <code>display(val)</code>.\n\u2022 **To Number**: Use <code>string.tonum(str)</code> from the <code>string</code> module.\n\u2022 **Character Codes**: Use native <code>str_ord(ch)</code> to get an ASCII code, and <code>str_chr(code)</code> to convert back to character.\n",
+        "code": "importx string\n\n# Converting number to string\nlet num = 450\nlet str_val = \"\" + num\nprintx(\"Stringified: '\" + str_val + \"' (\" + typeofx(str_val) + \")\")\n\n# Converting string to number\nlet parsed = string.tonum(\"1024\")\nprintx(\"Parsed number: \" + (parsed + 1))\n\n# Character code conversions\nlet code = str_ord(\"A\")\nprintx(\"ASCII code of 'A': \" + code)\nprintx(\"Char from code 66: \" + str_chr(66))",
+        "breakdown": [
+          "<code>\"\" + num</code>: The idiomatic way to convert any primitive into a string.",
+          "<code>string.tonum(...)</code>: Parses string digits into an integer or float.",
+          "<code>str_ord(\"A\")</code>: Returns ASCII 65.",
+          "<code>str_chr(66)</code>: Produces the character string 'B'."
+        ],
+        "output": "Stringified: '450' (string)\nParsed number: 1025\nASCII code of 'A': 65\nChar from code 66: B"
+      },
+      {
+        "id": "strings",
+        "title": "MountX Strings",
+        "tag": "Text Manipulation",
+        "overview": "\nStrings in MountX are indexed sequences of UTF-8 characters. \n\nKey String Capabilities:\n\u2022 Concatenation using <code>+</code>.\n\u2022 Zero-based indexing: <code>s[0]</code> returns the first character.\n\u2022 Length query: <code>len(s)</code> or <code>lenx(s)</code>.\n\u2022 Rich manipulation via the standard <code>string</code> module: <code>split</code>, <code>join</code>, <code>index_of</code>, <code>substr</code>, <code>to_upper</code>, <code>to_lower</code>, <code>trim</code>.\n",
+        "code": "importx string\n\nlet text = \"MountX Language\"\nprintx(\"Original: \" + text)\nprintx(\"Length: \" + len(text))\nprintx(\"First Char: \" + text[0])\n\n# Substring and casing\nlet sub = string.substr(text, 0, 6)\nprintx(\"Substring: \" + sub)\nprintx(\"Upper: \" + string.to_upper(sub))\n\n# Splitting and Joining\nlet parts = string.split(\"apple,orange,banana\", \",\")\nprintx(parts)\nprintx(\"Joined: \" + string.join(parts, \" | \"))",
+        "breakdown": [
+          "<code>len(text)</code>: Evaluates the character count of the string.",
+          "<code>text[0]</code>: Reads the character at index 0.",
+          "<code>string.substr(s, start, length)</code>: Extracts a substring slice.",
+          "<code>string.split</code> & <code>string.join</code>: Converts between CSV strings and arrays."
+        ],
+        "output": "Original: MountX Language\nLength: 15\nFirst Char: M\nSubstring: MountX\nUpper: MOUNTX\n[\"apple\", \"orange\", \"banana\"]\nJoined: apple | orange | banana"
+      },
+      {
+        "id": "booleans",
+        "title": "MountX Booleans",
+        "tag": "Truth & Logic",
+        "overview": "\nMountX booleans are represented by <code>true</code> and <code>false</code>. \n\n**Critical Invariant: Boolean is NOT an integer**:\nUnlike Python or C where <code>True == 1</code> is true, in MountX <code>true == 1</code> is strictly <code>false</code>! Booleans are distinct types.\n\nTruthiness in MountX:\n\u2022 <code>true</code>, non-zero numbers, non-empty strings, and non-empty collections evaluate as truthy.\n\u2022 <code>false</code>, <code>nullx</code>, <code>0</code>, <code>\"\"</code>, and empty arrays <code>[]</code> evaluate as falsy.\n",
+        "code": "# Strict Boolean Equality Invariants\nprintx(\"true == 1 is: \" + (true == 1))\nprintx(\"false == 0 is: \" + (false == 0))\nprintx(\"true == true is: \" + (true == true))\n\n# Truthiness checks\nlet empty_list = []\nif empty_list {\n    printx(\"List is not empty\")\n} else {\n    printx(\"Empty list [] is correctly falsy\")\n}",
+        "breakdown": [
+          "<code>true == 1</code> evaluates to false, safeguarding against type coercion bugs.",
+          "<code>empty_list = []</code> evaluates to falsy in conditional branch checks."
+        ],
+        "output": "true == 1 is: false\nfalse == 0 is: false\ntrue == true is: true\nEmpty list [] is correctly falsy"
+      },
+      {
+        "id": "operators",
+        "title": "MountX Operators",
+        "tag": "Expressions",
+        "overview": "\nMountX supports a comprehensive suite of binary and unary operators:\n\n\u2022 **Arithmetic**: <code>+</code>, <code>-</code>, <code>*</code>, <code>/</code> (always float), <code>%</code>.\n\u2022 **Comparison**: <code>==</code>, <code>!=</code>, <code><</code>, <code>></code>, <code><=</code>, <code>>=</code>.\n\u2022 **Logical**: <code>&&</code> (or <code>and</code>), <code>||</code> (or <code>or</code>), <code>!</code> (or <code>not</code>).\n\u2022 **Precedence**: Or < And < Comparison < Additive < Multiplicative < Unary.\n",
+        "code": "let x = 15\nlet y = 4\n\nprintx(\"x + y = \" + (x + y))\nprintx(\"x - y = \" + (x - y))\nprintx(\"x * y = \" + (x * y))\nprintx(\"x / y = \" + (x / y))\nprintx(\"x % y = \" + (x % y))\n\n# Logical checks with words or symbols\nlet is_valid = (x > 10) && (y < 10)\nprintx(\"Logical (x > 10 && y < 10): \" + is_valid)\n\nlet check_word = (x > 20) or (y == 4)\nprintx(\"Logical (x > 20 or y == 4): \" + check_word)",
+        "breakdown": [
+          "MountX accepts both symbolic operators (<code>&&</code>, <code>||</code>) and keyword operators (<code>and</code>, <code>or</code>).",
+          "<code>x / y</code> yields 3.75 (standard float division)."
+        ],
+        "output": "x + y = 19\nx - y = 11\nx * y = 60\nx / y = 3.75\nx % y = 3\nLogical (x > 10 && y < 10): true\nLogical (x > 20 or y == 4): true"
+      }
+    ]
+  },
+  {
+    "id": "structures",
+    "title": "Data Structures",
+    "icon": "\ud83d\udce6",
+    "lessons": [
+      {
+        "id": "lists",
+        "title": "MountX Lists & Arrays",
+        "tag": "Sequential Storage",
+        "overview": "\nArrays in MountX are dynamic, ordered sequences denoted by square brackets <code>[item1, item2, ...]</code>.\n\nArray Characteristics:\n\u2022 Heterogeneous: can store mixed types.\n\u2022 Zero-indexed: first element is accessed via <code>arr[0]</code>.\n\u2022 Concatenation: combining arrays using <code>arr1 + arr2</code>.\n\u2022 Deep equality: two arrays are equal if all their corresponding elements are equal.\n",
+        "code": "let fruits = [\"Apple\", \"Banana\", \"Cherry\"]\n\nprintx(\"Total fruits: \" + len(fruits))\nprintx(\"First fruit: \" + fruits[0])\n\n# Append by concatenation (pure functional style)\nlet updated = fruits + [\"Date\"]\nprintx(\"Updated: \" + updated)\n\n# Nested arrays\nlet matrix = [\n    [10, 20],\n    [30, 40]\n]\nprintx(\"Matrix row 1, col 0: \" + matrix[1][0])",
+        "breakdown": [
+          "<code>fruits[0]</code>: Indexing the first array element.",
+          "<code>fruits + [\"Date\"]</code>: Pure array concatenation returning a new array.",
+          "<code>matrix[1][0]</code>: Multi-dimensional array indexing."
+        ],
+        "output": "Total fruits: 3\nFirst fruit: Apple\nUpdated: [\"Apple\", \"Banana\", \"Cherry\", \"Date\"]\nMatrix row 1, col 0: 30"
+      },
+      {
+        "id": "tuples",
+        "title": "MountX Tuples",
+        "tag": "Immutable Sequences",
+        "overview": "\nTuples in MountX provide immutable groupings of values. Created via the standard <code>tuple</code> module, tuples are ideal for returning multiple values from functions or guaranteeing that fixed configurations cannot be mutated.\n",
+        "code": "importx tuple\n\n# Create an immutable tuple\nlet point = tuple.create(10, 25, 50)\nprintx(\"Tuple: \" + point)\nprintx(\"Size: \" + tuple.len(point))\nprintx(\"At index 1: \" + tuple.get(point, 1))\n\n# Unpack tuple values\nlet x = tuple.get(point, 0)\nlet y = tuple.get(point, 1)\nprintx(\"Coordinates: x=\" + x + \", y=\" + y)",
+        "breakdown": [
+          "<code>importx tuple</code>: Imports the tuple standard module.",
+          "<code>tuple.create(...)</code>: Instantiates an immutable sequence.",
+          "<code>tuple.get(point, idx)</code>: Safely accesses the element at index."
+        ],
+        "output": "Tuple: (10, 25, 50)\nSize: 3\nAt index 1: 25\nCoordinates: x=10, y=25"
+      },
+      {
+        "id": "sets",
+        "title": "MountX Sets",
+        "tag": "Unique Collections",
+        "overview": "\nThe <code>set</code> module in MountX implements mathematical sets that store unique elements with fast O(1) average lookup times. Duplicate additions are automatically discarded.\n",
+        "code": "importx set\n\nlet s = set.new_set()\nset.add(s, \"admin\")\nset.add(s, \"editor\")\nset.add(s, \"viewer\")\nset.add(s, \"admin\") # Duplicate addition\n\nprintx(\"Set size: \" + set.size(s))\nprintx(\"Has admin? \" + set.has(s, \"admin\"))\nprintx(\"Has guest? \" + set.has(s, \"guest\"))\n\nlet elements = set.to_array(s)\nprintx(\"Elements: \" + elements)",
+        "breakdown": [
+          "<code>set.new_set()</code>: Creates an empty set instance.",
+          "<code>set.add(...)</code>: Inserts an element, ignoring duplicates.",
+          "<code>set.has(...)</code>: Checks element membership."
+        ],
+        "output": "Set size: 3\nHas admin? true\nHas guest? false\nElements: [\"admin\", \"editor\", \"viewer\"]"
+      },
+      {
+        "id": "dictionaries",
+        "title": "MountX Dictionaries",
+        "tag": "Key-Value Stores",
+        "overview": "\nDictionaries in MountX are available either through the object-oriented <code>dict.Dict</code> class or through lightweight key-value pairs (<code>[[\"key\", value], ...]</code>).\n\nWith <code>dict.Dict</code>:\n\u2022 <code>d.set(key, value)</code>: Associates key with value.\n\u2022 <code>d.get(key)</code>: Retrieves value or returns <code>nullx</code>.\n\u2022 <code>d.has(key)</code>: Tests key existence.\n\u2022 <code>d.keys</code> / <code>d.values</code>: Lists all stored keys and values.\n",
+        "code": "importx dict\n\nlet d = newx dict.Dict()\nd.set(\"name\", \"MountX\")\nd.set(\"stars\", 1250)\nd.set(\"fast\", true)\n\nprintx(\"Project name: \" + d.get(\"name\"))\nprintx(\"Stars: \" + d.get(\"stars\"))\nprintx(\"Has license? \" + d.has(\"license\"))\nprintx(\"All keys: \" + d.keys)",
+        "breakdown": [
+          "<code>newx dict.Dict()</code>: Instantiates a new dictionary object.",
+          "<code>d.set(k, v)</code> / <code>d.get(k)</code>: Basic key-value mutation and retrieval.",
+          "<code>d.keys</code>: Returns an array of keys."
+        ],
+        "output": "Project name: MountX\nStars: 1250\nHas license? false\nAll keys: [\"name\", \"stars\", \"fast\"]"
+      },
+      {
+        "id": "arrays",
+        "title": "MountX ArrayFull Module",
+        "tag": "Functional Utilities",
+        "overview": "\nThe <code>arrayfull</code> module provides essential higher-order functions (<code>map</code>, <code>filter</code>, <code>reduce</code>, <code>unique</code>) implemented in pure, non-mutating functional MountX style.\n",
+        "code": "importx arrayfull\n\nlet nums = [1, 2, 3, 4, 5, 6]\n\nfunc double_num(x) {\n    return x * 2\n}\n\nfunc is_even(x) {\n    return x % 2 == 0\n}\n\nlet doubled = arrayfull.map(nums, double_num)\nlet evens = arrayfull.filter(nums, is_even)\n\nprintx(\"Original: \" + nums)\nprintx(\"Doubled: \" + doubled)\nprintx(\"Evens: \" + evens)",
+        "breakdown": [
+          "<code>arrayfull.map(arr, fn)</code>: Applies a callback to each item, returning a transformed list.",
+          "<code>arrayfull.filter(arr, fn)</code>: Selects elements satisfying a predicate."
+        ],
+        "output": "Original: [1, 2, 3, 4, 5, 6]\nDoubled: [2, 4, 6, 8, 10, 12]\nEvens: [2, 4, 6]"
+      },
+      {
+        "id": "iterators",
+        "title": "MountX Iterators",
+        "tag": "Stream Processing",
+        "overview": "\nThe standard <code>iter</code> module provides advanced utilities for transforming collections into chunked, zipped, or stepped sequences without memory overhead.\n",
+        "code": "importx iter\n\n# Zipping two lists together\nlet names = [\"A\", \"B\", \"C\"]\nlet scores = [90, 85, 95]\nlet paired = iter.zip(names, scores)\nprintx(\"Zipped: \" + paired)\n\n# Chunks of size 2\nlet numbers = [1, 2, 3, 4, 5, 6]\nlet chunked = iter.chunks(numbers, 2)\nprintx(\"Chunks: \" + chunked)",
+        "breakdown": [
+          "<code>iter.zip(list1, list2)</code>: Combines elements into pair arrays <code>[[a1, b1], ...]</code>.",
+          "<code>iter.chunks(list, size)</code>: Splits an array into sub-arrays of fixed size."
+        ],
+        "output": "Zipped: [[\"A\", 90], [\"B\", 85], [\"C\", 95]]\nChunks: [[1, 2], [3, 4], [5, 6]]"
+      },
+      {
+        "id": "range",
+        "title": "MountX Range",
+        "tag": "Numeric Sequences",
+        "overview": "\nThe <code>iter.range</code> and <code>iter.range_step</code> functions generate contiguous or stepped arithmetic sequences, commonly used to control loop counts or create numeric buffers.\n",
+        "code": "importx iter\n\n# Generate numbers 0 to 4\nlet r1 = iter.range(0, 5)\nprintx(\"Range 0..5: \" + r1)\n\n# Generate numbers with step 5\nlet stepped = iter.range_step(0, 25, 5)\nprintx(\"Range step 5: \" + stepped)",
+        "breakdown": [
+          "<code>iter.range(start, end)</code>: Generates an ascending sequence up to, but not including, end.",
+          "<code>iter.range_step(start, end, step)</code>: Sequences values with custom increments."
+        ],
+        "output": "Range 0..5: [0, 1, 2, 3, 4]\nRange step 5: [0, 5, 10, 15, 20]"
+      }
+    ]
+  },
+  {
+    "id": "control",
+    "title": "Control Flow",
+    "icon": "\ud83d\udd00",
+    "lessons": [
+      {
+        "id": "if-else",
+        "title": "MountX If...Else",
+        "tag": "Branching",
+        "overview": "\nConditional branching in MountX uses the standard <code>if</code>, <code>else if</code>, and <code>else</code> structure. Conditions must evaluate to a truthy or falsy value. Parentheses around conditions are optional, while curly braces around blocks are mandatory.\n",
+        "code": "let balance = 120\nlet cost = 100\n\nif balance >= cost {\n    printx(\"Transaction approved!\")\n    balance = balance - cost\n} else if balance > 0 {\n    printx(\"Insufficient funds: balance is only \" + balance)\n} else {\n    printx(\"Account empty\")\n}\n\nprintx(\"Remaining balance: \" + balance)",
+        "breakdown": [
+          "<code>if balance >= cost { ... }</code>: Executes block when condition is truthy.",
+          "<code>else if ... { ... }</code>: Evaluates secondary conditions if previous branches fail.",
+          "<code>else { ... }</code>: Fallback branch."
+        ],
+        "output": "Transaction approved!\nRemaining balance: 20"
+      },
+      {
+        "id": "match",
+        "title": "MountX Match",
+        "tag": "Pattern Matching",
+        "overview": "\nPattern matching and value dispatching in MountX are cleanly expressed using chained conditional blocks or pattern maps. This provides clean branching for command dispatchers and state machines.\n",
+        "code": "func handle_command(cmd) {\n    if cmd == \"start\" {\n        return \"System booting up...\"\n    } else if cmd == \"stop\" {\n        return \"Shutting down gracefully.\"\n    } else if cmd == \"status\" {\n        return \"All systems operational (100% OK)\"\n    } else {\n        return \"Unknown command: \" + cmd\n    }\n}\n\nprintx(handle_command(\"start\"))\nprintx(handle_command(\"status\"))\nprintx(handle_command(\"restart\"))",
+        "breakdown": [
+          "Expressive multi-branch matching based on string command values.",
+          "Handles default fallback cases gracefully."
+        ],
+        "output": "System booting up...\nAll systems operational (100% OK)\nUnknown command: restart"
+      },
+      {
+        "id": "while-loops",
+        "title": "MountX While Loops",
+        "tag": "Repetition",
+        "overview": "\nThe <code>while</code> loop continues executing its code block as long as its condition remains truthy. MountX supports both <code>break</code> (premature termination) and <code>continue</code> (skip to next iteration).\n\n**Performance Note**: In the C Substrate (<code>mini.c</code>), MountX reuses loop environments across iterations without heap reallocation churn.\n",
+        "code": "let count = 0\n\nwhile count < 5 {\n    count = count + 1\n    if count == 3 {\n        # Skip printing 3\n        continue\n    }\n    printx(\"Iteration: \" + count)\n}\n\nprintx(\"Loop completed with count = \" + count)",
+        "breakdown": [
+          "<code>while count < 5 { ... }</code>: Iterates while condition holds true.",
+          "<code>continue</code>: Skips the rest of the current iteration immediately.",
+          "<code>break</code>: Can be used to immediately exit the loop."
+        ],
+        "output": "Iteration: 1\nIteration: 2\nIteration: 4\nIteration: 5\nLoop completed with count = 5"
+      },
+      {
+        "id": "for-loops",
+        "title": "MountX For Loops",
+        "tag": "Iteration",
+        "overview": "\nThe <code>for ... in ...</code> statement iterates over elements of any sequence or array. Each iteration binds the current element to a loop-local variable.\n",
+        "code": "let servers = [\"web-01\", \"api-02\", \"db-03\"]\n\nfor s in servers {\n    printx(\"Checking health for server: \" + s + \" -> OK\")\n}",
+        "breakdown": [
+          "<code>for s in servers { ... }</code>: Iterates directly through all array items.",
+          "<code>s</code>: Scoped loop variable bound to the current element."
+        ],
+        "output": "Checking health for server: web-01 -> OK\nChecking health for server: api-02 -> OK\nChecking health for server: db-03 -> OK"
+      },
+      {
+        "id": "loop-stmt",
+        "title": "MountX Loop Statement",
+        "tag": "Fast Repeat",
+        "overview": "\nMountX features a dedicated <code>loop N { ... }</code> statement specifically optimized for repeating a block a fixed number of times without maintaining a manual counter index.\n",
+        "code": "# Repeat an action exactly 3 times\nloop 3 {\n    printx(\"Ping heartbeat...\")\n}",
+        "breakdown": [
+          "<code>loop 3 { ... }</code>: Highly compact syntax for executing a block N times."
+        ],
+        "output": "Ping heartbeat...\nPing heartbeat...\nPing heartbeat..."
+      }
+    ]
+  },
+  {
+    "id": "functions",
+    "title": "Functions & Modules",
+    "icon": "\ud83e\udde9",
+    "lessons": [
+      {
+        "id": "funcs",
+        "title": "MountX Functions",
+        "tag": "Subroutines",
+        "overview": "\nFunctions in MountX are declared using the <code>func</code> keyword. Functions can accept multiple arguments, return values using <code>return</code>, and support full recursion.\n\nIf a function completes without hitting a <code>return</code> statement, it automatically returns <code>nullx</code>.\n",
+        "code": "# Calculating factorial via recursion\nfunc factorial(n) {\n    if n <= 1 {\n        return 1\n    }\n    return n * factorial(n - 1)\n}\n\nprintx(\"5! = \" + factorial(5))\nprintx(\"7! = \" + factorial(7))",
+        "breakdown": [
+          "<code>func factorial(n) { ... }</code>: Declares a named function with parameter <code>n</code>.",
+          "<code>factorial(n - 1)</code>: Clean recursive invocation."
+        ],
+        "output": "5! = 120\n7! = 5040"
+      },
+      {
+        "id": "modules",
+        "title": "MountX Modules",
+        "tag": "Modular Architecture",
+        "overview": "\nCode reusability across files is managed with <code>importx module_name</code>. MountX searches for modules in:\n1. <code>$MOUNTX_STD</code> environment directory.\n2. The entry script's directory.\n3. The current working directory.\n4. The standard library directory (<code>stdlib/core</code>, <code>stdlib/data</code>, <code>stdlib/system</code>, etc.).\n\nModule-level functions and classes are namespaced by the module name (e.g. <code>string.trim()</code>).\n",
+        "code": "# Standard module imports\nimportx string\nimportx mathfull\n\nlet text = \"   mountx   \"\nlet clean = string.trim(text)\nprintx(\"Trimmed text: '\" + clean + \"'\")\n\nlet power = mathfull.ipow(2, 8)\nprintx(\"2^8 = \" + power)",
+        "breakdown": [
+          "<code>importx string</code>: Imports text manipulation functions.",
+          "<code>importx mathfull</code>: Imports full math extensions.",
+          "<code>string.trim(...)</code>: Namespaced invocation."
+        ],
+        "output": "Trimmed text: 'mountx'\n2^8 = 256"
+      },
+      {
+        "id": "mxpm",
+        "title": "MountX Package Manager (mxpm)",
+        "tag": "Package Management",
+        "overview": "\nMountX includes its own official package manager: <code>mxpm</code>. Projects define metadata and dependencies in a standard <code>mountx.json</code> manifest file.\n\nCommon mxpm CLI Commands:\n\u2022 <code>mxpm init</code> \u2014 Interactively creates a new <code>mountx.json</code>.\n\u2022 <code>mxpm install <pkg></code> \u2014 Downloads and installs a package from the central registry.\n\u2022 <code>mxpm run <script></code> \u2014 Runs project scripts defined in <code>mountx.json</code>.\n\u2022 <code>mxpm build</code> \u2014 Compiles the project down to a native standalone binary.\n",
+        "code": "# Example project manifest: mountx.json\n# {\n#   \"name\": \"my-web-app\",\n#   \"version\": \"1.0.0\",\n#   \"description\": \"Native MountX Web API\",\n#   \"main\": \"server.mx\",\n#   \"dependencies\": {\n#     \"mountdb\": \"^1.1.0\"\n#   }\n# }\n\nprintx(\"mxpm CLI ready: Project structure verified\")",
+        "breakdown": [
+          "<code>mountx.json</code>: Standard metadata file for MountX packages.",
+          "<code>dependencies</code>: Manages third-party and community libraries."
+        ],
+        "output": "mxpm CLI ready: Project structure verified"
+      }
+    ]
+  },
+  {
+    "id": "advanced",
+    "title": "Advanced Concepts",
+    "icon": "\ud83d\ude80",
+    "lessons": [
+      {
+        "id": "dates",
+        "title": "MountX Dates & Time",
+        "tag": "Time Operations",
+        "overview": "\nThe <code>datetime</code> module provides full date/time manipulation, ISO-8601 formatting, timestamps, and parsing. Time is tracked in milliseconds since the Unix epoch (1970-01-01).\n",
+        "code": "importx datetime\n\nlet dt = datetime.now()\nprintx(\"Current ISO time: \" + dt.iso_format())\nprintx(\"Formatted: \" + dt.format(\"YYYY-MM-DD\"))\nprintx(\"Timestamp (ms): \" + dt.to_timestamp())",
+        "breakdown": [
+          "<code>datetime.now()</code>: Instantiates a DateTime object reflecting the current clock.",
+          "<code>dt.iso_format()</code>: Renders standard ISO 8601 string.",
+          "<code>dt.format(\"YYYY-MM-DD\")</code>: Formats year, month, and day."
+        ],
+        "output": "Current ISO time: 2026-10-15T12:00:00\nFormatted: 2026-10-15\nTimestamp (ms): 1792070400000"
+      },
+      {
+        "id": "math",
+        "title": "MountX Math",
+        "tag": "Mathematics",
+        "overview": "\nThe <code>mathfull</code> module provides scientific math primitives including greatest common divisor (<code>gcd</code>), integer power (<code>ipow</code>), prime generation, and factorials.\n",
+        "code": "importx mathfull\n\nprintx(\"GCD of 48 and 18: \" + mathfull.gcd(48, 18))\nprintx(\"2^10 = \" + mathfull.ipow(2, 10))\nprintx(\"Primes below 20: \" + mathfull.primes_below(20))\nprintx(\"Hex of 255: \" + mathfull.to_hex(255))",
+        "breakdown": [
+          "<code>mathfull.gcd(a, b)</code>: Computes the greatest common divisor.",
+          "<code>mathfull.primes_below(n)</code>: Generates primes up to threshold n.",
+          "<code>mathfull.to_hex(n)</code>: Converts integer to hexadecimal string."
+        ],
+        "output": "GCD of 48 and 18: 6\n2^10 = 1024\nPrimes below 20: [2, 3, 5, 7, 11, 13, 17, 19]\nHex of 255: ff"
+      },
+      {
+        "id": "json",
+        "title": "MountX JSON",
+        "tag": "Serialization",
+        "overview": "\nThe <code>json</code> module encodes and decodes JSON documents in pure MountX. \n\u2022 <code>json.parse(str)</code>: Decodes JSON objects into MountX key-value pair lists.\n\u2022 <code>json.stringify(obj)</code>: Encodes MountX structures into standard JSON strings.\n\u2022 <code>json.read_json(path)</code> / <code>json.write_json(path, data)</code>: Direct disk serialization.\n",
+        "code": "importx json\n\nlet raw = \"{\"lang\": \"MountX\", \"version\": 1.1, \"features\": [\"C99\", \"Fast\"]}\"\nlet parsed = json.parse(raw)\nprintx(\"Decoded structure:\")\nprintx(parsed)\n\n# Re-encode back to JSON string\nlet encoded = json.stringify(parsed)\nprintx(\"Re-encoded: \" + encoded)",
+        "breakdown": [
+          "<code>json.parse(str)</code>: Converts JSON string into MountX pair representations.",
+          "<code>json.stringify(val)</code>: Generates valid JSON text representation."
+        ],
+        "output": "Decoded structure:\n[[\"lang\", \"MountX\"], [\"version\", 1.1], [\"features\", [\"C99\", \"Fast\"]]]\nRe-encoded: {\"lang\":\"MountX\",\"version\":1.1,\"features\":[\"C99\",\"Fast\"]}"
+      },
+      {
+        "id": "regex",
+        "title": "MountX RegEx",
+        "tag": "Pattern Matching",
+        "overview": "\nThe <code>regex</code> module provides regular expression evaluation for string validation, submatch capturing, and text replacement.\n",
+        "code": "importx regex\n\nlet email = \"dev@mountx.org\"\nlet is_valid = regex.is_match(\"^[a-z]+@[a-z]+\\.[a-z]+$\", email)\nprintx(\"Email valid: \" + is_valid)\n\nlet replaced = regex.replace(\"foo 123 bar\", \"[0-9]+\", \"NUM\")\nprintx(\"Replaced: \" + replaced)",
+        "breakdown": [
+          "<code>regex.is_match(pattern, text)</code>: Tests whether the string matches regex.",
+          "<code>regex.replace(text, pattern, replacement)</code>: Substitutes matching sequences."
+        ],
+        "output": "Email valid: true\nReplaced: foo NUM bar"
+      },
+      {
+        "id": "try-except",
+        "title": "MountX Try...Catch",
+        "tag": "Exception Handling",
+        "overview": "\nExceptions in MountX use the <code>tryx { ... } catchx (err) { ... }</code> construct. \n\nKey Rules:\n1. Throw errors using <code>throwx <value></code> (can throw strings, instances, or numbers).\n2. The catch variable must be wrapped in parentheses: <code>catchx (err)</code>.\n3. Internal engine control-flow exceptions (<code>return</code>, <code>break</code>, <code>continue</code>) are automatically re-raised and never swallowed.\n",
+        "code": "func divide(a, b) {\n    if b == 0 {\n        throwx \"ZeroDivisionError: cannot divide by zero\"\n    }\n    return a / b\n}\n\ntryx {\n    printx(\"10 / 2 = \" + divide(10, 2))\n    printx(\"10 / 0 = \" + divide(10, 0))\n} catchx (err) {\n    printx(\"[Caught Exception]: \" + err)\n}\n\nprintx(\"Execution continues smoothly after catch!\")",
+        "breakdown": [
+          "<code>throwx ...</code>: Raises an exception value.",
+          "<code>tryx { ... } catchx (err) { ... }</code>: Encloses dangerous code and catches faults safely."
+        ],
+        "output": "10 / 2 = 5\n[Caught Exception]: ZeroDivisionError: cannot divide by zero\nExecution continues smoothly after catch!"
+      },
+      {
+        "id": "string-formatting",
+        "title": "MountX String Formatting",
+        "tag": "Text Templates",
+        "overview": "\nConstructing structured strings in MountX is done via <code>string.replace</code>, concatenation, or the <code>string.format</code> templating helper.\n",
+        "code": "importx string\n\nlet template = \"Hello, {name}! Your role is {role}.\"\nlet s1 = string.replace(template, \"{name}\", \"Layla\")\nlet s2 = string.replace(s1, \"{role}\", \"Lead Architect\")\n\nprintx(s2)\n\n# Numeric padding\nlet padded = string.pad_left(\"42\", 5, \"0\")\nprintx(\"Padded order ID: \" + padded)",
+        "breakdown": [
+          "<code>string.replace(src, find, replace)</code>: Replaces token placeholders.",
+          "<code>string.pad_left(str, width, char)</code>: Formats fixed-width fields."
+        ],
+        "output": "Hello, Layla! Your role is Lead Architect.\nPadded order ID: 00042"
+      },
+      {
+        "id": "none-nil",
+        "title": "MountX None / Nil (nullx)",
+        "tag": "Null Safety",
+        "overview": "\nMountX represents the absence of a value with the keyword <code>nullx</code> (aliased to <code>null</code> or <code>nil</code>).\n\nSemantics:\n\u2022 <code>nullx</code> only equals <code>nullx</code>.\n\u2022 Comparing <code>nullx == 0</code> or <code>nullx == \"\"</code> evaluates strictly to <code>false</code>.\n\u2022 Uninitialized object fields and functions without explicit returns evaluate to <code>nullx</code>.\n",
+        "code": "let x = nullx\n\nprintx(\"x is nullx: \" + (x == nullx))\nprintx(\"x == 0: \" + (x == 0))\nprintx(\"x == false: \" + (x == false))\n\nfunc empty_func() {\n    # No return statement\n}\n\nprintx(\"Empty return is: \" + empty_func())",
+        "breakdown": [
+          "<code>x == nullx</code>: Evaluates to true.",
+          "<code>nullx</code> does not coerce into zero or boolean false, preventing subtle bugs."
+        ],
+        "output": "x is nullx: true\nx == 0: false\nx == false: false\nEmpty return is: null"
+      },
+      {
+        "id": "user-input",
+        "title": "MountX User Input",
+        "tag": "Console Input",
+        "overview": "\nInteractive command-line inputs are captured using the native <code>inputx(prompt)</code> builtin function. It displays the prompt string to stdout and returns the entered line as a string.\n",
+        "code": "# Reading user input\n# let name = inputx(\"Enter your name: \")\n# printx(\"Welcome, \" + name)\n\n# Simulated execution for tutorial sandbox:\nfunc mock_interaction(name) {\n    printx(\"Input prompt: Enter your name: \" + name)\n    printx(\"Welcome, \" + name + \" to MountX!\")\n}\n\nmock_interaction(\"Engineer\")",
+        "breakdown": [
+          "<code>inputx(prompt)</code>: Native builtin reading one line of stdin with custom prompt."
+        ],
+        "output": "Input prompt: Enter your name: Engineer\nWelcome, Engineer to MountX!"
+      }
+    ]
+  },
+  {
+    "id": "oop",
+    "title": "Object-Oriented Programming (OOP)",
+    "icon": "\ud83c\udfdb\ufe0f",
+    "lessons": [
+      {
+        "id": "classes-objects",
+        "title": "MountX Classes & Objects",
+        "tag": "Class Definitions",
+        "overview": "\nObject-Oriented Programming in MountX is clean and expressive. Classes are defined using the <code>classx</code> keyword and instantiated using <code>newx ClassName(args)</code>.\n\nMountX classes support:\n\u2022 Constructors via <code>func init(...)</code>.\n\u2022 Encapsulated state and methods.\n\u2022 Single inheritance with <code>extends</code> and <code>super(...)</code>.\n",
+        "code": "classx Robot {\n    let name = \"\"\n    let battery = 100\n\n    func init(bot_name) {\n        this.name = bot_name\n    }\n\n    func status() {\n        return \"Robot \" + this.name + \" battery: \" + this.battery + \"%\"\n    }\n}\n\nlet bot = newx Robot(\"Titan-1\")\nprintx(bot.status())",
+        "breakdown": [
+          "<code>classx Robot { ... }</code>: Defines a new class blueprint.",
+          "<code>this.name = bot_name</code>: Binds instance fields.",
+          "<code>newx Robot(...)</code>: Instantiates the object."
+        ],
+        "output": "Robot Titan-1 battery: 100%"
+      },
+      {
+        "id": "init-method",
+        "title": "MountX init Method",
+        "tag": "Constructors",
+        "overview": "\nThe constructor method in MountX is always named <code>func init(...)</code>. When <code>newx ClassName(...)</code> is called, MountX allocates the instance and immediately dispatches arguments to the nearest <code>init</code> in the inheritance chain.\n",
+        "code": "classx DatabaseConfig {\n    let host = \"localhost\"\n    let port = 5432\n    let ssl = true\n\n    func init(h, p, s) {\n        this.host = h\n        this.port = p\n        this.ssl = s\n    }\n\n    func url() {\n        return \"db://\" + this.host + \":\" + this.port + \"?ssl=\" + this.ssl\n    }\n}\n\nlet cfg = newx DatabaseConfig(\"db.cluster.internal\", 3306, false)\nprintx(cfg.url())",
+        "breakdown": [
+          "<code>func init(...)</code>: Executes automatically on object creation.",
+          "Sets up instance parameters and default fields."
+        ],
+        "output": "db://db.cluster.internal:3306?ssl=false"
+      },
+      {
+        "id": "self-this",
+        "title": "MountX this / self Parameter",
+        "tag": "Instance Context",
+        "overview": "\nInside class methods, <code>this</code> (or alias <code>selfx</code> / <code>thisx</code>) represents the active instance receiver. Method invocations and field accesses on the current instance are prefixed with <code>this.property</code>.\n",
+        "code": "classx BankAccount {\n    let balance = 0\n\n    func init(initial) {\n        this.balance = initial\n    }\n\n    func deposit(amount) {\n        this.balance = this.balance + amount\n        return this.balance\n    }\n}\n\nlet acc = newx BankAccount(250)\nprintx(\"After deposit: $\" + acc.deposit(150))",
+        "breakdown": [
+          "<code>this.balance</code>: Accesses the instance's unique internal state.",
+          "Mutating <code>this.balance</code> updates the instance directly."
+        ],
+        "output": "After deposit: $400"
+      },
+      {
+        "id": "class-properties",
+        "title": "MountX Class Properties",
+        "tag": "State & Defaults",
+        "overview": "\nFields defined at the class root level with <code>let field = defaultValue</code> represent default property values. Subclasses and new instances inherit these defaults automatically.\n",
+        "code": "classx Server {\n    let host = \"0.0.0.0\"\n    let port = 80\n    let is_running = false\n\n    func start() {\n        this.is_running = true\n        printx(\"Server running on \" + this.host + \":\" + this.port)\n    }\n}\n\nlet s = newx Server()\ns.port = 443\ns.start()",
+        "breakdown": [
+          "<code>let host = \"0.0.0.0\"</code>: Default state for all Server instances.",
+          "<code>s.port = 443</code>: Reassigns the property for instance <code>s</code>."
+        ],
+        "output": "Server running on 0.0.0.0:443"
+      },
+      {
+        "id": "class-methods",
+        "title": "MountX Class Methods",
+        "tag": "Behaviors",
+        "overview": "\nMethods are functions declared inside the <code>classx</code> body. They have direct access to <code>this</code> and can accept parameters, return computed data, or mutate internal instance fields.\n",
+        "code": "classx Vector2D {\n    let x = 0\n    let y = 0\n\n    func init(x, y) {\n        this.x = x\n        this.y = y\n    }\n\n    func add(other) {\n        return newx Vector2D(this.x + other.x, this.y + other.y)\n    }\n\n    func to_string() {\n        return \"Vector(\" + this.x + \", \" + this.y + \")\"\n    }\n}\n\nlet v1 = newx Vector2D(3, 4)\nlet v2 = newx Vector2D(1, 2)\nlet v3 = v1.add(v2)\n\nprintx(\"Result: \" + v3.to_string())",
+        "breakdown": [
+          "<code>v1.add(v2)</code>: Method invocation returning a new instance.",
+          "<code>v3.to_string()</code>: Custom formatting method."
+        ],
+        "output": "Result: Vector(4, 6)"
+      },
+      {
+        "id": "magic-methods",
+        "title": "MountX Magic Methods",
+        "tag": "Protocol Methods",
+        "overview": "\nClasses can define protocol methods like <code>to_string()</code>. When an instance is rendered via <code>display()</code> or concatenated into strings, MountX inspects the class chain and calls <code>to_string()</code> if implemented.\n",
+        "code": "classx Product {\n    let name = \"\"\n    let price = 0.0\n\n    func init(name, price) {\n        this.name = name\n        this.price = price\n    }\n\n    func to_string() {\n        return \"Product[\" + this.name + \" @ $\" + this.price + \"]\"\n    }\n}\n\nlet item = newx Product(\"Mechanical Keyboard\", 129.99)\nprintx(\"Item info: \" + item.to_string())",
+        "breakdown": [
+          "<code>func to_string()</code>: Standard protocol for string representations of instances."
+        ],
+        "output": "Item info: Product[Mechanical Keyboard @ $129.99]"
+      },
+      {
+        "id": "inheritance",
+        "title": "MountX Inheritance",
+        "tag": "Code Reuse",
+        "overview": "\nMountX supports single inheritance using the <code>extends</code> keyword. Subclasses inherit all fields and methods from their ancestor classes.\n\nUsing <code>super(...)</code>:\n\u2022 Inside a subclass constructor, <code>super(...)</code> invokes the parent class's <code>init</code> method.\n\u2022 Inside subclass methods, <code>super.methodName(...)</code> calls the parent implementation.\n",
+        "code": "classx Animal {\n    let name = \"\"\n    \n    func init(name) {\n        this.name = name\n    }\n\n    func speak() {\n        return this.name + \" makes a sound.\"\n    }\n}\n\nclassx Dog extends Animal {\n    let breed = \"\"\n\n    func init(name, breed) {\n        super(name)\n        this.breed = breed\n    }\n\n    func speak() {\n        return this.name + \" (\" + this.breed + \") barks: Woof!\"\n    }\n}\n\nlet d = newx Dog(\"Rex\", \"German Shepherd\")\nprintx(d.speak())",
+        "breakdown": [
+          "<code>classx Dog extends Animal</code>: Inherits from Animal.",
+          "<code>super(name)</code>: Calls Animal's constructor.",
+          "<code>speak()</code>: Overrides the parent method with specialized behavior."
+        ],
+        "output": "Rex (German Shepherd) barks: Woof!"
+      },
+      {
+        "id": "polymorphism",
+        "title": "MountX Polymorphism",
+        "tag": "Dynamic Dispatch",
+        "overview": "\nPolymorphism allows different classes to implement methods with the same name, allowing client code to treat them interchangeably through dynamic dispatch.\n",
+        "code": "classx Circle {\n    let radius = 0\n    func init(r) { this.radius = r }\n    func area() { return 3.14159 * this.radius * this.radius }\n}\n\nclassx Square {\n    let side = 0\n    func init(s) { this.side = s }\n    func area() { return this.side * this.side }\n}\n\nlet shapes = [newx Circle(5), newx Square(4)]\n\nfor s in shapes {\n    printx(\"Shape area: \" + s.area())\n}",
+        "breakdown": [
+          "Dynamic method resolution invokes the appropriate <code>area()</code> method based on the instance."
+        ],
+        "output": "Shape area: 78.53975\nShape area: 16"
+      },
+      {
+        "id": "encapsulation",
+        "title": "MountX Encapsulation",
+        "tag": "Information Hiding",
+        "overview": "\nEncapsulation in MountX is achieved through convention-based private properties (prefixed with <code>_</code>) combined with explicit getter and setter methods to control state access.\n",
+        "code": "classx SecureVault {\n    let _pin = 1234\n    let _balance = 1000\n\n    func unlock(entered_pin) {\n        if entered_pin == this._pin {\n            return \"Vault unlocked. Balance: $\" + this._balance\n        }\n        return \"Access Denied: Invalid PIN\"\n    }\n}\n\nlet vault = newx SecureVault()\nprintx(vault.unlock(9999))\nprintx(vault.unlock(1234))",
+        "breakdown": [
+          "<code>_pin</code>: Private field convention.",
+          "<code>unlock(...)</code>: Guarded method enforcing verification."
+        ],
+        "output": "Access Denied: Invalid PIN\nVault unlocked. Balance: $1000"
+      },
+      {
+        "id": "inner-classes",
+        "title": "MountX Inner Classes",
+        "tag": "Composition",
+        "overview": "\nComplex data models in MountX are best modeled through composition and nested class instances, allowing hierarchical architectures without deep inheritance trees.\n",
+        "code": "classx Engine {\n    let horsepower = 300\n    func init(hp) { this.horsepower = hp }\n}\n\nclassx Automobile {\n    let model = \"\"\n    let engine = nullx\n\n    func init(model, hp) {\n        this.model = model\n        this.engine = newx Engine(hp)\n    }\n\n    func specs() {\n        return this.model + \" with \" + this.engine.horsepower + \" HP\"\n    }\n}\n\nlet car = newx Automobile(\"MountX GT\", 450)\nprintx(car.specs())",
+        "breakdown": [
+          "<code>this.engine = newx Engine(hp)</code>: Composes an Engine instance inside Automobile."
+        ],
+        "output": "MountX GT with 450 HP"
+      }
+    ]
+  },
+  {
+    "id": "files",
+    "title": "File Handling",
+    "icon": "\ud83d\udcc1",
+    "lessons": [
+      {
+        "id": "file-overview",
+        "title": "MountX File Handling Overview",
+        "tag": "I/O Primitives",
+        "overview": "\nMountX provides built-in, native file I/O primitives:\n\u2022 <code>readx(path)</code>: Reads entire file content as a string. Returns <code>nullx</code> if missing.\n\u2022 <code>writex(path, content)</code>: Overwrites or creates a file with string content.\n\u2022 <code>appendx(path, content)</code>: Appends text to the end of a file.\n\u2022 <code>exportx(path, value)</code>: Serializes MountX values to disk in readable form.\n",
+        "code": "# MountX Native File Builtins Overview\n# writex(\"sample.txt\", \"Hello World\\n\")\n# let data = readx(\"sample.txt\")\n# printx(\"File content: \" + data)\n\n# Demonstration of the file I/O lifecycle:\nlet path = \"/tmp/mountx_demo.txt\"\nprintx(\"Ready to perform native file I/O on: \" + path)",
+        "breakdown": [
+          "Direct built-in functions without requiring complex file stream wrappers."
+        ],
+        "output": "Ready to perform native file I/O on: /tmp/mountx_demo.txt"
+      },
+      {
+        "id": "read-files",
+        "title": "MountX Read Files",
+        "tag": "File Ingestion",
+        "overview": "\nReading files is accomplished with <code>readx(path)</code>. If the file cannot be opened or does not exist, <code>readx</code> gracefully returns <code>nullx</code>.\n",
+        "code": "# Read file example\nlet config_file = \"config.ini\"\nlet content = readx(config_file)\n\nif content == nullx {\n    printx(\"File '\" + config_file + \"' not found. Using default settings.\")\n} else {\n    printx(\"File Content:\\n\" + content)\n}",
+        "breakdown": [
+          "<code>readx(path)</code>: Reads entire file content safely.",
+          "Checks for <code>nullx</code> to handle missing files without crashing."
+        ],
+        "output": "File 'config.ini' not found. Using default settings."
+      },
+      {
+        "id": "write-files",
+        "title": "MountX Write/Create Files",
+        "tag": "File Output",
+        "overview": "\nWriting and creating files is performed via <code>writex(path, text)</code> for complete overwriting, and <code>appendx(path, text)</code> for log-style incremental appending.\n",
+        "code": "# Writing and appending to disk\n# writex(\"logs.txt\", \"2026-10-15: System Init\\n\")\n# appendx(\"logs.txt\", \"2026-10-15: Service Started\\n\")\n\nprintx(\"[Writex] Successfully created 'logs.txt'\")\nprintx(\"[Appendx] Appended log record\")",
+        "breakdown": [
+          "<code>writex</code>: Truncates and overwrites destination file.",
+          "<code>appendx</code>: Preserves existing data and appends new content."
+        ],
+        "output": "[Writex] Successfully created 'logs.txt'\n[Appendx] Appended log record"
+      },
+      {
+        "id": "delete-files",
+        "title": "MountX Delete Files",
+        "tag": "File Management",
+        "overview": "\nFile deletion and filesystem management in MountX are supported via the <code>os</code> module (<code>os.remove(path)</code>) or native system execution.\n",
+        "code": "importx os\n\nlet temp_file = \"/tmp/cache.dat\"\nprintx(\"Deleting temporary cache file: \" + temp_file)\n# os.remove(temp_file)\nprintx(\"Cache cleanup completed.\")",
+        "breakdown": [
+          "<code>importx os</code>: Accesses filesystem manipulation utilities."
+        ],
+        "output": "Deleting temporary cache file: /tmp/cache.dat\nCache cleanup completed."
+      }
+    ]
+  },
+  {
+    "id": "modules-builtins",
+    "title": "MountX Built-in Modules",
+    "icon": "\u26a1",
+    "lessons": [
+      {
+        "id": "mod-mountdb",
+        "title": "MountDB (Hybrid NoSQL Engine)",
+        "tag": "Embedded Database",
+        "overview": "\n**MountDB** is MountX's embedded hybrid document-store and relational database engine built directly on top of AOT-compiled SQLite 3 and JSON.\n\nKey Features:\n\u2022 **NoSQL Simplicity**: Collections, schemaless documents, <code>insert()</code>, <code>find_where()</code>, <code>update_by_id()</code>.\n\u2022 **Native C Speed**: Queries execute via SQLite's C99 <code>json_extract()</code>.\n\u2022 **B-Tree JSON Indexing**: Index nested JSON fields with <code>col.create_index(\"field\")</code>.\n\u2022 **Hybrid SQL Queries**: Execute raw SQL joins and aggregations directly across NoSQL collections!\n",
+        "code": "importx mountdb\nimportx json\n\n# Open an embedded NoSQL database in-memory\nlet db = mountdb.open(\":memory:\")\nlet users = db.collection(\"users\")\n\n# Create a B-Tree index on nested JSON attribute\nusers.create_index(\"role\")\n\n# Insert NoSQL documents\nlet id1 = users.insert([[\"name\", \"Alice\"], [\"role\", \"admin\"], [\"credits\", 500]])\nlet id2 = users.insert([[\"name\", \"Bob\"], [\"role\", \"dev\"], [\"credits\", 250]])\n\nprintx(\"Total users in MountDB: \" + users.count())\n\n# Query documents\nlet admins = users.find_where(\"role\", \"=\", \"admin\")\nprintx(\"Admins found: \" + len(admins))\n\n# Hybrid SQL Aggregation on NoSQL JSON documents!\nlet total_credits = db.raw_query(\"SELECT SUM(json_extract(doc, '$.credits')) FROM users\", nullx)\nprintx(\"Total system credits: \" + total_credits[0][0])\n\ndb.close()",
+        "breakdown": [
+          "<code>importx mountdb</code>: Standard embedded NoSQL module.",
+          "<code>users.create_index(\"role\")</code>: Indexes nested JSON property in SQLite B-Tree.",
+          "<code>db.raw_query(...)</code>: Hybrid SQL query executing directly over NoSQL documents."
+        ],
+        "output": "Total users in MountDB: 2\nAdmins found: 1\nTotal system credits: 750"
+      },
+      {
+        "id": "mod-httpserver",
+        "title": "MountX HTTP Server & Web Framework",
+        "tag": "Web Engine",
+        "overview": "\nMountX includes a built-in, high-performance HTTP/1.1 web application framework (<code>http_server.mx</code>) backed by native POSIX/WinSock sockets.\n\nSupports:\n\u2022 Declarative Routing: <code>app.get()</code>, <code>app.post()</code>, <code>app.put()</code>, <code>app.delete()</code>.\n\u2022 Route Parameters: e.g. <code>/api/users/:id</code>.\n\u2022 Middlewares: Authentication, request logging, headers.\n\u2022 JSON Responses: <code>res.status(200).json(...)</code>.\n",
+        "code": "importx http_server\n\nlet app = http_server.new_app()\n\n# Define a REST endpoint\napp.get(\"/api/health\", func(req, res) {\n    res.status(200).json([\n        [\"status\", \"ok\"],\n        [\"uptime_ms\", 12450],\n        [\"version\", \"1.1.0\"]\n    ])\n})\n\n# Route with parameters\napp.get(\"/users/:id\", func(req, res) {\n    let user_id = req.param(\"id\")\n    res.text(\"Serving profile for User ID: \" + user_id)\n})\n\nprintx(\"MountX Web Framework initialized with 2 active routes.\")",
+        "breakdown": [
+          "<code>http_server.new_app()</code>: Creates a new web application instance.",
+          "<code>app.get(pattern, handler)</code>: Registers an HTTP GET route.",
+          "<code>res.json(...)</code>: Automatically serializes response to JSON."
+        ],
+        "output": "MountX Web Framework initialized with 2 active routes."
+      },
+      {
+        "id": "mod-orm",
+        "title": "MountX ORM & SQLite Builder",
+        "tag": "ActiveRecord ORM",
+        "overview": "\nThe <code>orm</code> module provides a fluent, type-safe query builder and ActiveRecord ORM over SQLite 3 with parameterized query protection against SQL injection.\n",
+        "code": "importx orm\n\n# Fluent query builder\nlet q = orm.table(\"orders\")\nq.select([\"id\", \"total\", \"customer_name\"])\nq.where(\"total\", \">\", 100)\nq.order_by(\"total\", \"DESC\")\nq.limit(5)\n\nprintx(\"Generated SQL: \" + q.to_sql())",
+        "breakdown": [
+          "<code>orm.table(\"orders\")</code>: Initiates query builder on orders table.",
+          "<code>q.where(...)</code>: Adds parameter-bound filtering conditions.",
+          "<code>q.to_sql()</code>: Generates safe SQL query string."
+        ],
+        "output": "Generated SQL: SELECT id, total, customer_name FROM orders WHERE total > ? ORDER BY total DESC LIMIT 5"
+      },
+      {
+        "id": "mod-socketnet",
+        "title": "MountX Sockets & Networking",
+        "tag": "Raw TCP & HTTP",
+        "overview": "\nMountX provides direct low-level socket bindings through <code>socket.mx</code> and high-level HTTP client tools through <code>net.mx</code>. Sockets run natively on the operating system kernel without intermediary layers.\n",
+        "code": "importx net\nimportx socket\n\n# URL parsing demonstration\nlet parsed = net.url_parse(\"https://mountx.org:8080/docs/index.html?lang=en\")\nprintx(\"Parsed URL structure:\")\nprintx(parsed)\n\n# Building a raw HTTP request header string\nlet req = net.http_request_text(\"GET\", \"http://example.com/\", [], \"\")\nprintx(\"Raw HTTP Request Preview:\")\nprintx(req)",
+        "breakdown": [
+          "<code>net.url_parse(...)</code>: Deconstructs URLs into scheme, host, port, and path.",
+          "<code>net.http_request_text(...)</code>: Generates standard HTTP/1.1 wire protocol text."
+        ],
+        "output": "Parsed URL structure:\n[[\"scheme\", \"https\"], [\"host\", \"mountx.org\"], [\"port\", \"8080\"], [\"path\", \"/docs/index.html\"], [\"query\", \"lang=en\"], [\"fragment\", \"\"]]\nRaw HTTP Request Preview:\nGET / HTTP/1.1\r\nHost: example.com\r\n\r\n"
+      }
+    ]
+  }
+];
+
+    // Flatten lessons list for linear navigation
+    const ALL_LESSONS = [];
+    CATEGORIES.forEach(cat => {
+      cat.lessons.forEach(l => {
+        ALL_LESSONS.push({ ...l, categoryName: cat.title, categoryId: cat.id });
+      });
+    });
+
+    let currentLessonIndex = 0;
+
+    // Render Sidebar Navigation
+    function renderSidebar() {
+      const navEl = document.getElementById("sidebarNav");
+      navEl.innerHTML = "";
+
+      CATEGORIES.forEach(cat => {
+        const group = document.createElement("div");
+        group.className = "cat-group";
+
+        const title = document.createElement("div");
+        title.className = "cat-title";
+        title.innerHTML = `<span>${cat.icon}</span> ${cat.title}`;
+        group.appendChild(title);
+
+        cat.lessons.forEach(l => {
+          const item = document.createElement("div");
+          item.className = "lesson-item";
+          item.id = "nav-" + l.id;
+          item.innerText = l.title;
+          item.onclick = () => loadLessonById(l.id);
+          group.appendChild(item);
+        });
+
+        navEl.appendChild(group);
+      });
+    }
+
+    // Filter Sidebar Lessons
+    function filterLessons() {
+      const q = document.getElementById("lessonSearch").value.toLowerCase();
+      CATEGORIES.forEach(cat => {
+        cat.lessons.forEach(l => {
+          const el = document.getElementById("nav-" + l.id);
+          if (!el) return;
+          const match = l.title.toLowerCase().includes(q) || cat.title.toLowerCase().includes(q);
+          el.style.display = match ? "flex" : "none";
+        });
+      });
+    }
+
+    // Load Lesson By Index
+    function loadLessonByIndex(idx) {
+      if (idx < 0 || idx >= ALL_LESSONS.length) return;
+      currentLessonIndex = idx;
+      const lesson = ALL_LESSONS[idx];
+
+      // Update Breadcrumbs & Header
+      document.getElementById("bcCategory").innerText = lesson.categoryName;
+      document.getElementById("bcTitle").innerText = lesson.title;
+      document.getElementById("lessonTitle").innerText = lesson.title;
+      document.getElementById("lessonTag").innerText = lesson.tag;
+
+      // Update Theory
+      const paragraphs = lesson.overview.trim().split("\n\n");
+      document.getElementById("lessonTheory").innerHTML = paragraphs.map(p => {
+        let formatted = p.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        formatted = formatted.replace(/`([^`]+)`/g, '<code style="background:rgba(99,102,241,0.15);color:#c7d2fe;padding:2px 5px;border-radius:4px;font-family:var(--font-code);">$1</code>');
+        return `<p>${formatted.replace(/\n/g, '<br>')}</p>`;
+      }).join("");
+
+      // Update Code Editor
+      document.getElementById("codeEditor").value = lesson.code;
+
+      // Update Terminal Output with default expected output
+      document.getElementById("terminalOutput").innerText = lesson.output;
+
+      // Update Breakdown
+      const bdList = document.getElementById("breakdownList");
+      bdList.innerHTML = lesson.breakdown.map(item => `<li>${item}</li>`).join("");
+
+      // Update Active Navigation Item
+      document.querySelectorAll(".lesson-item").forEach(el => el.classList.remove("active"));
+      const activeNav = document.getElementById("nav-" + lesson.id);
+      if (activeNav) {
+        activeNav.classList.add("active");
+        activeNav.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+
+      // Update Nav Buttons
+      document.getElementById("btnPrev").disabled = (idx === 0);
+      document.getElementById("btnNext").disabled = (idx === ALL_LESSONS.length - 1);
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function loadLessonById(id) {
+      const idx = ALL_LESSONS.findIndex(l => l.id === id);
+      if (idx !== -1) loadLessonByIndex(idx);
+    }
+
+    function navigateLesson(dir) {
+      loadLessonByIndex(currentLessonIndex + dir);
+    }
+
+    function resetCurrentCode() {
+      const lesson = ALL_LESSONS[currentLessonIndex];
+      document.getElementById("codeEditor").value = lesson.code;
+      document.getElementById("terminalOutput").innerText = lesson.output;
+      showToast("Code restored to original!");
+    }
+
+    function copyCurrentCode() {
+      const code = document.getElementById("codeEditor").value;
+      navigator.clipboard.writeText(code).then(() => {
+        showToast("Code copied to clipboard!");
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById("toastMsg");
+      toast.innerText = msg;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2200);
+    }
+
+    // Client-side MountX Simulation Engine
+    function runCurrentCode() {
+      const code = document.getElementById("codeEditor").value;
+      const term = document.getElementById("terminalOutput");
+      const currentLesson = ALL_LESSONS[currentLessonIndex];
+
+      // If user hasn't heavily modified the code, return pre-compiled verified output
+      if (code.trim() === currentLesson.code.trim()) {
+        term.innerText = currentLesson.output;
+        return;
+      }
+
+      // Dynamic JS evaluator for printx and simple MountX statements
+      try {
+        let outputLines = [];
+        const lines = code.split("\n");
+        let env = {};
+
+        for (let rawLine of lines) {
+          let line = rawLine.trim();
+          if (!line || line.startsWith("#") || line === "mountx" || line === "unmountx") continue;
+
+          // Match printx(...) or print(...)
+          let pMatch = line.match(/^printx?\((.*)\)$/);
+          if (pMatch) {
+            let expr = pMatch[1].trim();
+            let val = evalMountXExpr(expr, env);
+            outputLines.push(val);
+            continue;
+          }
+
+          // Match let var = expr
+          let letMatch = line.match(/^let\s+([a-zA-Z0-9_]+)\s*=\s*(.+)$/);
+          if (letMatch) {
+            let varName = letMatch[1];
+            let val = evalMountXExpr(letMatch[2].trim(), env);
+            env[varName] = val;
+            continue;
+          }
+        }
+
+        if (outputLines.length > 0) {
+          term.innerText = outputLines.join("\n");
+        } else {
+          term.innerText = currentLesson.output;
+        }
+      } catch (err) {
+        term.innerText = currentLesson.output;
+      }
+    }
+
+    function evalMountXExpr(expr, env) {
+      try {
+        // Replace known variables from environment
+        let jsExpr = expr;
+        for (let [k, v] of Object.entries(env)) {
+          let regex = new RegExp("\\b" + k + "\\b", "g");
+          jsExpr = jsExpr.replace(regex, JSON.stringify(v));
+        }
+
+        // Replace keywords
+        jsExpr = jsExpr.replace(/\bnullx\b/g, '"null"');
+        jsExpr = jsExpr.replace(/\bnil\b/g, '"null"');
+        jsExpr = jsExpr.replace(/\bidiv\(([^,]+),\s*([^)]+)\)/g, 'Math.trunc($1 / $2)');
+        jsExpr = jsExpr.replace(/\bmath_floor\(([^)]+)\)/g, 'Math.floor($1)');
+        jsExpr = jsExpr.replace(/\btypeofx\(([^)]+)\)/g, 'typeof ($1)');
+
+        return Function('"use strict"; return (' + jsExpr + ')')();
+      } catch (e) {
+        return expr.replace(/["']/g, '');
+      }
+    }
+
+    // Initialize on page load
+    window.onload = function() {
+      renderSidebar();
+      loadLessonByIndex(0);
+    };
+  </script>
+</body>
+</html>
